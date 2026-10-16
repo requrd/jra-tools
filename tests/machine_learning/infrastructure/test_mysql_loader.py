@@ -1,6 +1,7 @@
-"""MysqlLoaderのユニットテスト"""
+"""MysqlLoaderのユニットテスト."""
 
 from pytest_mock import MockerFixture
+
 from jra_tools.machine_learning.interface_adapter.ispecified_loader import (
     SpecifiedLoader,
 )

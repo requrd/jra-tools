@@ -1,19 +1,22 @@
-"""DB周りのユーティリティ"""
+"""DB周りのユーティリティ."""
 
-from typing import List
 from functools import reduce
+from typing import List
+
 import numpy as np
+
 from jra_tools import KaisaiData
 
 
 def create_payout(kaisais: List[KaisaiData]) -> np.ndarray:
-    """払戻データをndarrayに変換する
+    """払戻データをndarrayに変換する.
 
     Args:
         kaisais (list[KaisaiData]): 開催データ一覧
 
     Returns:
         np.ndarray: (レース数, 18)
+
     """
     payout_data = np.zeros([reduce(lambda x, y: x + len(y.races), kaisais, 0), 18])
 
@@ -33,26 +36,28 @@ def save_payout(payout: np.ndarray, period: str):
 
 
 def save_payout_from(kaisais: List[KaisaiData], period: str):
-    """開催一覧から払戻金データをローカルに保存する
+    """開催一覧から払戻金データをローカルに保存する.
 
     Args:
         kaisais (List[KaisaiData]): 開催一覧
         period (str): ファイル名
+
     """
     save_payout(create_payout(kaisais), period)
 
 
 class PayoutCreator:
-    """kaisaisから払戻金を作るクラス"""
+    """kaisaisから払戻金を作るクラス."""
 
     def __init__(self, kaisais):
         self.kaisais = kaisais
         self.payout = create_payout(kaisais)
 
     def save(self, period: str):
-        """payoutのndarrayをローカルに保存する
+        """payoutのndarrayをローカルに保存する.
 
         Args:
             period (str): 拡張子を除いたファイル名
+
         """
         save_payout(self.payout, period)

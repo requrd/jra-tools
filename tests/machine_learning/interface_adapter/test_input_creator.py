@@ -1,20 +1,22 @@
-"""InputCreatorのユニットテスト"""
+"""InputCreatorのユニットテスト."""
 
 import os
+
 import numpy as np
-from jra_tools.machine_learning.usecase.icreator import ICreator
+
 from jra_tools import InputCreator
+from jra_tools.machine_learning.usecase.icreator import ICreator
 
 
 def test_save(sample_kaisais):
-    """saveメソッドのユニットテスト"""
+    """saveメソッドのユニットテスト."""
     try:
         ic = InputCreator(sample_kaisais)
         ic.save("testfile")
 
-        assert isinstance(
-            ic, ICreator
-        ), "InputCreatorがICreatorのプロトコルに適合しません"
+        assert isinstance(ic, ICreator), (
+            "InputCreatorがICreatorのプロトコルに適合しません"
+        )
         with open("x_testfile.dump", "rb") as f:
             data = np.load(f, allow_pickle=True)
 

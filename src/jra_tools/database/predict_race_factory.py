@@ -1,27 +1,29 @@
-"""推論レースデータを生成する"""
-from typing import List
+"""推論レースデータを生成する."""
+
 from dataclasses import dataclass
+from typing import List
+
 from jrdb_model import (
-    PredictRaceData,
-    KaisaiData,
     BangumiData,
+    KaisaiData,
+    PredictRaceData,
     RacehorseData,
 )
 
 
 @dataclass
 class PredictRaceFactory:
-    """推論レースデータファクトリクラス"""
+    """推論レースデータファクトリクラス."""
 
     kaisais: List[KaisaiData]
 
     def create(self) -> List[PredictRaceData]:
-        """
-        開催データ一覧から推論レースデータを生成する
-        推論データが登録済みでないと失敗する
+        """開催データ一覧から推論レースデータを生成する
+        推論データが登録済みでないと失敗する.
 
         Returns:
             List[PredictRaceData]: 推論レースデータ一覧
+
         """
         return [
             PredictRaceData(

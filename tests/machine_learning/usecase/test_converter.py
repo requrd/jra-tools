@@ -1,9 +1,10 @@
-"""converterのユニットテスト"""
+"""converterのユニットテスト."""
 
 from unittest.mock import MagicMock
-import pytest
-from jra_tools.machine_learning.usecase.converter import Converter
 
+import pytest
+
+from jra_tools.machine_learning.usecase.converter import Converter
 
 mock_load = MagicMock()
 mock_period = MagicMock()

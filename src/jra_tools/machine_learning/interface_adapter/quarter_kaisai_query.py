@@ -1,14 +1,16 @@
-"""四半期データ用クエリ"""
+"""四半期データ用クエリ."""
 
-from typing import List, Callable
+from typing import Callable, List
+
 from jrdb_model import KaisaiData
+
 from jra_tools.machine_learning.interface_adapter.ispecified_loader import (
     SpecifiedLoader,
 )
 
 
 class QuarterKaisaiQuery:
-    """四半期データ用クエリ"""
+    """四半期データ用クエリ."""
 
     def __init__(
         self,
@@ -33,12 +35,12 @@ class QuarterKaisaiQuery:
     @property
     def _end(self) -> int:
         return int(
-            f"{self.year}{self._end_month:02}{30 if self._end_month in [2,4,6,9,11] else 31}"
+            f"{self.year}{self._end_month:02}{30 if self._end_month in [2, 4, 6, 9, 11] else 31}"
         )
 
     @property
     def period(self) -> str:
-        """データセットの期間"""
+        """データセットの期間."""
         return f"{self.year}_{self._start_month:02}_{self._end_month:02}"
 
     @property

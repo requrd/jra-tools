@@ -60,3 +60,7 @@ dev = [
     "ruff>=0.9.5",
     "types-tensorflow>=2.18.0.20241227",
 ]
+
+[[tool.mypy.overrides]]
+module = ["jrdb_model.*", "jrdb_model", "keras.*", "keras", "sklearn.*", "bs4"]
+ignore_missing_imports = true

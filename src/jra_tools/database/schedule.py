@@ -1,8 +1,10 @@
-"""Yahoo競馬からスケジュールを確認する"""
-from typing import List
+"""Yahoo競馬からスケジュールを確認する."""
+
+import asyncio
 import re
 from datetime import datetime
-import asyncio
+from typing import List
+
 import aiohttp
 from bs4 import BeautifulSoup
 
@@ -11,13 +13,14 @@ MONTH = int(datetime.now().strftime("%m"))
 
 
 async def annual_schedule(year: int = YEAR) -> List[int]:
-    """指定して年間スケジュールを取得する
+    """指定して年間スケジュールを取得する.
 
     Args:
         year (int, optional): 取得する年. Defaults to YEAR.
 
     Returns:
         List[int]: 開催される日付一覧
+
     """
     tasks = [open_days(month, year) for month in range(1, 13)]
     months = await asyncio.gather(*tasks)
@@ -25,7 +28,7 @@ async def annual_schedule(year: int = YEAR) -> List[int]:
 
 
 async def open_days(month: int = MONTH, year: int = YEAR) -> List[int]:
-    """指定した年、月の開催一覧を取得する
+    """指定した年、月の開催一覧を取得する.
 
     Args:
         month (int, optional): 月. Defaults to MONTH.
@@ -33,6 +36,7 @@ async def open_days(month: int = MONTH, year: int = YEAR) -> List[int]:
 
     Returns:
         List[int]: 開催される日付一覧
+
     """
     base_url = "https://sports.yahoo.co.jp/keiba/schedule/monthly"
     payload = {"year": str(year), "month": str(month)}

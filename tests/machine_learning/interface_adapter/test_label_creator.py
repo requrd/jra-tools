@@ -1,20 +1,23 @@
-"""LabelCreatorのユニットテスト"""
+"""LabelCreatorのユニットテスト."""
 
-from typing import List
 import os
 import pickle
+from typing import List
+
 from jrdb_model import KaisaiData
-from jra_tools.machine_learning.usecase.icreator import ICreator
+
 from jra_tools.machine_learning.interface_adapter.label_creator import (
     LabelCreator,
 )
+from jra_tools.machine_learning.usecase.icreator import ICreator
 
 
 def test_label_creator(sample_kaisais: List[KaisaiData]):
-    """ラベルクリエイターのユニットテスト
+    """ラベルクリエイターのユニットテスト.
 
     Args:
         sample_kaisais (List[KaisaiData]): 開催データ一覧
+
     """
     try:
         creator = LabelCreator(sample_kaisais)

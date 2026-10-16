@@ -1,26 +1,29 @@
-"""PayoutCreatorのユニットテスト"""
+"""PayoutCreatorのユニットテスト."""
 
 import os
+
 import numpy as np
-from jra_tools.machine_learning.usecase.icreator import ICreator
+
 from jra_tools.machine_learning.interface_adapter.payout_creator import (
     PayoutCreator,
     create_payout,
 )
+from jra_tools.machine_learning.usecase.icreator import ICreator
 
 
 def test_create_payout(sample_kaisais):
-    """KaisaiListから払戻金のndarrayが作成されていることを確認する
+    """KaisaiListから払戻金のndarrayが作成されていることを確認する.
 
     Args:
         sample_kaisais (KaisaiList): 開催一覧
+
     """
     data = create_payout(sample_kaisais)
     assert len(data) == 24
 
 
 def test_save(sample_kaisais):
-    """payoutのndarrayがローカルに保存されることを確認する"""
+    """payoutのndarrayがローカルに保存されることを確認する."""
     try:
         pc = PayoutCreator(sample_kaisais)
         pc.save("testfile")

@@ -1,7 +1,9 @@
-"""トレーニングデータ取得用クエリ"""
+"""トレーニングデータ取得用クエリ."""
 
-from typing import List, Callable
+from typing import Callable, List
+
 from jrdb_model import KaisaiData
+
 from jra_tools.machine_learning.interface_adapter.ispecified_loader import (
     SpecifiedLoader,
 )
@@ -13,7 +15,7 @@ def _validate_year(year: int):
 
 
 class TrainingKaisaiQuery:
-    """トレーニングデータ用クエリ"""
+    """トレーニングデータ用クエリ."""
 
     def __init__(
         self,
@@ -41,7 +43,7 @@ class TrainingKaisaiQuery:
 
     @property
     def period(self):
-        """データセットの期間"""
+        """データセットの期間."""
         return (
             "data"
             if self.start == 2012 and self.end == 2018

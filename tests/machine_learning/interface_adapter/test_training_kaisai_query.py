@@ -1,17 +1,19 @@
-"""トレーニング用ローダーのテスト"""
+"""トレーニング用ローダーのテスト."""
 
 from pytest_mock import MockerFixture
-from jra_tools.machine_learning.usecase.iquery import IQuery
+
 from jra_tools.machine_learning.interface_adapter.training_kaisai_query import (
     TrainingKaisaiQuery,
 )
+from jra_tools.machine_learning.usecase.iquery import IQuery
 
 
 def test_training_kaisai_query(mocker: MockerFixture):
-    """loadが意図した期間で呼び出されることを確認する
+    """loadが意図した期間で呼び出されることを確認する.
 
     Args:
         mocker (MockerFixture): _description_
+
     """
     mock_loader_factory = mocker.patch("mock_specified_loader.MockSpecifiedLoader")
     mock_loader = mock_loader_factory.return_value

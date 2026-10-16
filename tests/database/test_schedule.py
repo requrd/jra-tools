@@ -1,20 +1,23 @@
-"""Yahoo競馬のクローラーテスト"""
+"""Yahoo競馬のクローラーテスト."""
 
 import os
 import pickle
 from typing import Generator
+
 import pytest
 from aiohttp.client_exceptions import ClientConnectionError
 from aioresponses import aioresponses
-from jra_tools.database.schedule import open_days, annual_schedule
+
+from jra_tools.database.schedule import annual_schedule, open_days
 
 
 @pytest.fixture
 def server() -> Generator[aioresponses, None, None]:
-    """リクエストを受け付けるサーバーをモックする
+    """リクエストを受け付けるサーバーをモックする.
 
     Yields:
         Generator[aioresponses, None, None]: _description_
+
     """
     file_path = os.path.join(os.path.dirname(__file__), "yahoo_keiba.pkl")
     with aioresponses() as m:
@@ -29,10 +32,11 @@ def server() -> Generator[aioresponses, None, None]:
 
 @pytest.mark.asyncio
 async def test_open_days(server: aioresponses):
-    """対象の年、月に対するユニットテスト
+    """対象の年、月に対するユニットテスト.
 
     Args:
         server (aioresponses): モックサーバー
+
     """
     days = await open_days(12, 2018)
 
@@ -52,14 +56,13 @@ async def test_open_days(server: aioresponses):
 
 @pytest.mark.asyncio
 async def test_annual_schedule(server: aioresponses):
-    """
-    スケジューラをテストする
-    12の並列リクエストの内、一つでもコネクションができないとエラーが発生する
+    """スケジューラをテストする
+    12の並列リクエストの内、一つでもコネクションができないとエラーが発生する.
 
     Args:
         mocker (MockFixture): モッカーオブジェクト
-    """
 
+    """
     with pytest.raises(ClientConnectionError) as e:
         await annual_schedule(2018)
 

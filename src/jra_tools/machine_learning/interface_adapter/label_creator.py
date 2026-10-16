@@ -1,14 +1,15 @@
-﻿"""ラベルを作成する"""
+"""ラベルを作成する."""
 
-from typing import List
-from functools import reduce
 import pickle
+from functools import reduce
+from typing import List
+
 import numpy as np
 from jrdb_model import KaisaiData
 
 
 class LabelCreator:
-    """ラベル作成クラス"""
+    """ラベル作成クラス."""
 
     def __init__(self, kaisais: List[KaisaiData]):
         self.kaisais = kaisais
@@ -44,10 +45,11 @@ class LabelCreator:
         ]
 
     def save(self, name: str):
-        """ラベルデータをローカルに保存する
+        """ラベルデータをローカルに保存する.
 
         Args:
             name (str): ファイル名
+
         """
         with open(f"{name}.dump", mode="wb") as f:
             pickle.dump(self.labels, f)
