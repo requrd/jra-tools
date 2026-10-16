@@ -15,6 +15,7 @@ class PredictFactory:
     """推論データ生成クラス."""
 
     def __init__(self, kaisais: List[KaisaiData], model: Model):
+        """開催データとKerasモデルを検証して保持する."""
         for kaisai in kaisais:
             if not isinstance(kaisai, KaisaiData):
                 raise TypeError("開催データではありません")

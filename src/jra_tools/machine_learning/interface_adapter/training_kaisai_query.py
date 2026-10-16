@@ -8,10 +8,17 @@ from jra_tools.machine_learning.interface_adapter.ispecified_loader import (
     SpecifiedLoader,
 )
 
+MIN_YEAR = 2000
+MAX_YEAR = 2100
+# 期間名を"data"とする従来のデータセットの期間
+LEGACY_PERIOD = (2012, 2018)
+
 
 def _validate_year(year: int):
-    assert 2000 <= year <= 2100, "2000年以降を指定してください"
-    assert isinstance(year, int)
+    if not isinstance(year, int):
+        raise TypeError("年は整数で指定してください")
+    if not MIN_YEAR <= year <= MAX_YEAR:
+        raise ValueError("2000年以降を指定してください")
 
 
 class TrainingKaisaiQuery:
@@ -23,14 +30,17 @@ class TrainingKaisaiQuery:
         end: int,
         loader_factory: Callable[[int, int], SpecifiedLoader],
     ):
+        """開始年・終了年を検証し、期間に対応するローダーを作る."""
         _validate_year(start)
         _validate_year(end)
-        assert start <= end, "終了年は開始年以降にしてください"
+        if start > end:
+            raise ValueError("終了年は開始年以降にしてください")
         self.start = start
         self.end = end
         self.loader = loader_factory(self._start, self._end)
 
     def load(self) -> List[KaisaiData]:
+        """期間内の開催データを取得する."""
         return self.loader.load()
 
     @property
@@ -46,6 +56,6 @@ class TrainingKaisaiQuery:
         """データセットの期間."""
         return (
             "data"
-            if self.start == 2012 and self.end == 2018
+            if (self.start, self.end) == LEGACY_PERIOD
             else f"{self.start}_{self.end}"
         )

@@ -45,17 +45,17 @@ async def open_days(month: int = MONTH, year: int = YEAR) -> List[int]:
 
 
 async def _fetch_html(url, payload):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, params=payload) as response:
-            return await response.text()
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(url, params=payload) as response,
+    ):
+        return await response.text()
 
 
 def _parse_to_days(soup: BeautifulSoup) -> List[int]:
     return list(
-        set(
-            [
-                int(re.sub("\\D", "", s.contents[0]))
-                for s in soup.select(".hr-tableSchedule__data--date")
-            ]
-        )
+        {
+            int(re.sub("\\D", "", s.contents[0]))
+            for s in soup.select(".hr-tableSchedule__data--date")
+        }
     )

@@ -11,12 +11,15 @@ mock_period = MagicMock()
 
 
 class MockQuery:
+    """IQueryのモック."""
+
     load = mock_load
     period = mock_period
 
 
 @pytest.fixture
 def mock_query(sample_kaisais):
+    """サンプルの開催データを返すクエリ."""
     mock_query = MockQuery()
     mock_load.return_value = sample_kaisais
     yield mock_query
@@ -27,7 +30,10 @@ mock_save = MagicMock()
 
 
 class MockFactory:
+    """ICreatorのモック."""
+
     def __init__(self, kaisais):
+        """開催データを保持する."""
         self.kaisais = kaisais
 
     save = mock_save
@@ -35,11 +41,13 @@ class MockFactory:
 
 @pytest.fixture
 def mock_creator_factory():
+    """saveの呼び出しを記録するCreatorのファクトリ."""
     yield MockFactory
     mock_save.reset_mock()
 
 
 def test_save_with_name(mock_query, mock_creator_factory):
+    """指定したファイル名で保存されることを確認する."""
     converter = Converter(mock_query, [mock_creator_factory])
     converter.save("test_file")
 
@@ -48,6 +56,7 @@ def test_save_with_name(mock_query, mock_creator_factory):
 
 
 def test_save_without_name(mock_query, mock_creator_factory):
+    """ファイル名を省略するとクエリの期間名で保存されることを確認する."""
     converter = Converter(mock_query, [mock_creator_factory])
     converter.save()
 

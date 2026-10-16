@@ -18,7 +18,8 @@ class PredictRaceFactory:
     kaisais: List[KaisaiData]
 
     def create(self) -> List[PredictRaceData]:
-        """開催データ一覧から推論レースデータを生成する
+        """開催データ一覧から推論レースデータを生成する.
+
         推論データが登録済みでないと失敗する.
 
         Returns:
@@ -38,10 +39,12 @@ class PredictRaceFactory:
 
 
 def umarenOddses(race: BangumiData):
+    """レース内の全組み合わせの推定馬連オッズを返す."""
     return oddses(race, "umaren")
 
 
 def umarenOdds(horse1, horse2):
+    """2頭の推定馬連オッズを返す."""
     p1 = 1 / umatanOdds(horse1, horse2)
     p2 = 1 / umatanOdds(horse2, horse1)
     p = p1 + p2
@@ -49,6 +52,7 @@ def umarenOdds(horse1, horse2):
 
 
 def umatanOdds(horse1, horse2):
+    """horse1が1着、horse2が2着となる推定馬単オッズを返す."""
     p1 = horse1.predict.pp_icchaku
     p2 = horse2.predict.pp_nichaku / (1 - horse1.predict.pp_nichaku)
     p = p1 * p2
@@ -56,10 +60,15 @@ def umatanOdds(horse1, horse2):
 
 
 def wideOddses(race: BangumiData):
+    """レース内の全組み合わせの推定ワイドオッズを返す."""
     return oddses(race, "wide")
 
 
 def oddses(race: BangumiData, baken: str):
+    """レース内の全組み合わせの推定オッズを返す.
+
+    bakenが"wide"ならワイド、それ以外は馬連として計算する.
+    """
     odds_dict = {}
     for i, horse1 in enumerate(race.racehorses):
         for j in range(i + 1, len(race.racehorses)):
@@ -75,6 +84,7 @@ def oddses(race: BangumiData, baken: str):
 
 
 def wideOdds(horse1: RacehorseData, horse2: RacehorseData):
+    """2頭の推定ワイドオッズを返す."""
     p = horse1.predict.pp_icchaku * horse2.predict.pp_nichaku / (
         1 - horse1.predict.pp_nichaku
     ) + horse1.predict.pp_icchaku * horse2.predict.pp_sanchaku / (
@@ -94,6 +104,7 @@ def wideOdds(horse1: RacehorseData, horse2: RacehorseData):
 
 
 def wakurenOddses(race: BangumiData):
+    """全枠番の組み合わせの推定枠連オッズを返す."""
     odds_dict = {}
     for i in range(8):
         for j in range(i, 8):
@@ -104,6 +115,10 @@ def wakurenOddses(race: BangumiData):
 
 
 def wakurenOdds(race: BangumiData, gate1: int, gate2: int):
+    """2つの枠番の推定枠連オッズを返す.
+
+    どちらかの枠に馬がいない場合は0を返す.
+    """
     horses1 = [horse for horse in race.racehorses if horse.waku == gate1]
     if gate1 == gate2:
         return wakurenSameOdds(horses1)
@@ -118,6 +133,10 @@ def wakurenOdds(race: BangumiData, gate1: int, gate2: int):
 
 
 def wakurenSameOdds(horses: List[RacehorseData]):
+    """同じ枠同士の推定枠連オッズを返す.
+
+    枠内が2頭未満の場合は0を返す.
+    """
     if len(horses) <= 1:
         return 0
     pp = 0

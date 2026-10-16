@@ -21,4 +21,4 @@ def sample_kaisais() -> KaisaiList:
     file_path = os.path.join(os.path.dirname(__file__), "sample_kaisais.pkl")
 
     with open(file_path, "rb") as f:
-        return pickle.load(f)
+        return pickle.load(f)  # noqa: S301 リポジトリ内のテストデータ

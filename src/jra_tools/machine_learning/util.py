@@ -20,6 +20,7 @@ def _create_training(start: int, end: int, only_input: bool):
     Args:
         start (int): YYYY
         end (int): YYYY
+        only_input (bool): 入力データのみを作成するか
 
     Raises:
         RuntimeError: データのロードまたは保存中にエラーが発生

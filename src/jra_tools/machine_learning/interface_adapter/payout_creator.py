@@ -31,6 +31,7 @@ def create_payout(kaisais: List[KaisaiData]) -> np.ndarray:
 
 
 def save_payout(payout: np.ndarray, period: str):
+    """払戻金データをpayout_{period}.dumpに保存する."""
     with open(f"payout_{period}.dump", "wb") as f:
         payout.dump(f)
 
@@ -50,6 +51,7 @@ class PayoutCreator:
     """kaisaisから払戻金を作るクラス."""
 
     def __init__(self, kaisais):
+        """開催データから払戻金データを作る."""
         self.kaisais = kaisais
         self.payout = create_payout(kaisais)
 

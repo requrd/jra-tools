@@ -1,10 +1,15 @@
+"""BAOのオッズCSVをDBに取り込む."""
+
 import csv
 
 from jrdb_model import UmarenOddsData, WakurenOddsData, WideOddsData, create_app, db
 
 
 class BaoImporter:
+    """BAOのオッズCSVを開催データのレースに紐付けてDBに登録する."""
+
     def __init__(self, kaisais):
+        """取り込み対象の開催データを設定する."""
         self.kaisaikeys = [
             {
                 "course": self.getCourseCode(kaisai.kaisaikey),
@@ -16,6 +21,7 @@ class BaoImporter:
         self.racekeys = [race.racekey for kaisai in kaisais for race in kaisai.races]
 
     def getKaisaiInfo(self, kaisaikey):
+        """開催キーを場・年・回・日に分解する."""
         return {
             "ba": kaisaikey[0:2],
             "year": kaisaikey[2:4],
@@ -24,9 +30,14 @@ class BaoImporter:
         }
 
     def getCourseCode(self, kaisaikey):
+        """開催キーから場コードを取り出す."""
         return kaisaikey[0:2]
 
     def getRaceKey(self, bao_info):
+        """BAOのレース情報に対応するレースキーを返す.
+
+        対象期間外や該当する開催がない場合はNoneを返す.
+        """
         if self.kaisaikeys[0]["ymd"] <= bao_info["ymd"] <= self.kaisaikeys[-1]["ymd"]:
             for key in self.kaisaikeys:
                 if (
@@ -36,6 +47,7 @@ class BaoImporter:
                     return key["key"] + bao_info["no"]
 
     def getBaoCodeInfo(self, race_code):
+        """BAOのレースコードを日付・場コード・レース番号に分解する."""
         year_header = "19" if race_code[0] == "1" else "20"
         return {
             "year": year_header + race_code[1:3],
@@ -47,6 +59,7 @@ class BaoImporter:
         }
 
     def getUmarenOdds(self, odds):
+        """馬連オッズ文字列を馬番の組をキーとする辞書に変換する."""
         odds_dict = {}
         for i, odd_str in enumerate(odds):
             for j in range(0, len(odd_str), 6):
@@ -59,6 +72,7 @@ class BaoImporter:
         return odds_dict
 
     def getWideOdds(self, odds):
+        """ワイドオッズ文字列を馬番の組をキー、最小・最大オッズを値とする辞書に変換する."""
         odds_dict = {}
         for i, odd_str in enumerate(odds):
             for j in range(0, len(odd_str), 10):
@@ -73,6 +87,7 @@ class BaoImporter:
         return odds_dict
 
     def getWakurenOdds(self, odds_str):
+        """枠連オッズ文字列を枠番の組をキーとする辞書に変換する."""
         odds_dict = {}
         pos = 0
         for i in range(8):
@@ -84,10 +99,15 @@ class BaoImporter:
         return odds_dict
 
     def convertRaceCodeToRaceKey(self, raceCode):
+        """BAOのレースコードをレースキーに変換する."""
         bao_info = self.getBaoCodeInfo(raceCode)
         return self.getRaceKey(bao_info)
 
     def importUmarenWideCsv(self, fileName):
+        """馬連またはワイドのオッズCSVをDBに登録する.
+
+        ファイル名にumarenを含む場合は馬連、それ以外はワイドとして扱う.
+        """
         with open(fileName) as f:
             reader = csv.reader(f)
             header = next(reader)
@@ -115,9 +135,11 @@ class BaoImporter:
                 db.session.commit()
 
     def importWakurenCsv(self, fileName):
+        """枠連オッズCSVをDBに登録する."""
         with open(fileName) as f:
             reader = csv.reader(f)
             header = next(reader)
+            app = create_app()
             with app.app_context():
                 for row in reader:
                     racekey = self.convertRaceCodeToRaceKey(str(int(float(row[2]))))

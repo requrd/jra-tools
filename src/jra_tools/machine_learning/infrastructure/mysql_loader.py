@@ -36,10 +36,12 @@ class MysqlLoader:
     end: int
 
     def load(self) -> List[KaisaiData]:
+        """期間内の開催データを取得する."""
         return load(self.start, self.end)
 
     @property
     def period(self) -> str:
+        """データセットの期間."""
         return f"{self.start}_{self.end}"
 
 

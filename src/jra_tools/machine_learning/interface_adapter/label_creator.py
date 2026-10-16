@@ -12,6 +12,7 @@ class LabelCreator:
     """ラベル作成クラス."""
 
     def __init__(self, kaisais: List[KaisaiData]):
+        """開催データから1着〜5着の正解ラベルを作る."""
         self.kaisais = kaisais
         num_race = reduce(lambda x, y: x + len(y.races), kaisais, 0)
         num_max_horse = 18
@@ -20,22 +21,6 @@ class LabelCreator:
         self.t_sanchaku = np.zeros([num_race, num_max_horse])
         self.t_yonchaku = np.zeros([num_race, num_max_horse])
         self.t_gochaku = np.zeros([num_race, num_max_horse])
-        w_num = 0
-        for kaisai in kaisais:
-            for race in kaisai.races:
-                for horse in race.racehorses:
-                    oa = horse.result.order_of_arrival
-                    if oa == 1:
-                        self.t_icchaku[w_num, horse.num - 1] = 1
-                    elif oa == 2:
-                        self.t_nichaku[w_num, horse.num - 1] = 1
-                    elif oa == 3:
-                        self.t_sanchaku[w_num, horse.num - 1] = 1
-                    elif oa == 4:
-                        self.t_yonchaku[w_num, horse.num - 1] = 1
-                    elif oa == 5:
-                        self.t_gochaku[w_num, horse.num - 1] = 1
-                w_num += 1
         self.labels = [
             self.t_icchaku,
             self.t_nichaku,
@@ -43,6 +28,15 @@ class LabelCreator:
             self.t_yonchaku,
             self.t_gochaku,
         ]
+        labels_by_order = dict(enumerate(self.labels, start=1))
+        w_num = 0
+        for kaisai in kaisais:
+            for race in kaisai.races:
+                for horse in race.racehorses:
+                    label = labels_by_order.get(horse.result.order_of_arrival)
+                    if label is not None:
+                        label[w_num, horse.num - 1] = 1
+                w_num += 1
 
     def save(self, name: str):
         """ラベルデータをローカルに保存する.

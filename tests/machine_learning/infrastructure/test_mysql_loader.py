@@ -8,6 +8,7 @@ from jra_tools.machine_learning.interface_adapter.ispecified_loader import (
 
 
 def test_mysql_loader(mocker: MockerFixture):
+    """指定期間でget_kaisaisを呼び、期間名を返すことを確認する."""
     mock_get_kaisais = mocker.patch(
         "jra_tools.machine_learning.infrastructure.mysql_loader.get_kaisais"
     )

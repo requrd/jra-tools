@@ -8,6 +8,10 @@ from jra_tools.machine_learning.interface_adapter.ispecified_loader import (
     SpecifiedLoader,
 )
 
+MIN_YEAR = 2000
+MAX_YEAR = 2100
+QUARTERS = 4
+
 
 class QuarterKaisaiQuery:
     """四半期データ用クエリ."""
@@ -18,14 +22,19 @@ class QuarterKaisaiQuery:
         quarter: int,
         loader_factory: Callable[[int, int], SpecifiedLoader],
     ):
-        assert 2000 <= year <= 2100, "2000年以降を指定してください"
-        assert isinstance(year, int)
+        """年・四半期を検証し、期間に対応するローダーを作る."""
+        if not isinstance(year, int):
+            raise TypeError("年は整数で指定してください")
+        if not MIN_YEAR <= year <= MAX_YEAR:
+            raise ValueError("2000年以降を指定してください")
         self.year = year
-        assert 1 <= quarter <= 4, "1 - 4を指定してください"
+        if not 1 <= quarter <= QUARTERS:
+            raise ValueError("1 - 4を指定してください")
         self.quarter = quarter
         self.loader = loader_factory(self._start, self._end)
 
     def load(self) -> List[KaisaiData]:
+        """四半期内の開催データを取得する."""
         return self.loader.load()
 
     @property

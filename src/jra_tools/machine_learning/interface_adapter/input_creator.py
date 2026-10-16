@@ -16,6 +16,7 @@ class InputCreator:
     """KaisaiDataを元にndarrayを作成する."""
 
     def __init__(self, kaisais: List[KaisaiData]):
+        """開催データから入力データを作る."""
         self.kaisais = kaisais
         self.x_data = create_input_data(kaisais)
 
@@ -30,12 +31,14 @@ class InputCreator:
 
 
 def save_input_data(x_data: np.ndarray, name: str) -> None:
+    """入力データをx_{name}.dumpに保存する."""
     with open(f"x_{name}.dump", mode="wb") as f:
         x_data.dump(f)
 
 
 def create_input_data(kaisais: List[KaisaiData]) -> np.ndarray:
-    """開催一覧から推論モデル用入力データを作成する
+    """開催一覧から推論モデル用入力データを作成する.
+
     Args:
         kaisais (List[KaisaiData]): 開催一覧.
 

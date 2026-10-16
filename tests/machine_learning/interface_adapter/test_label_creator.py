@@ -25,7 +25,7 @@ def test_label_creator(sample_kaisais: List[KaisaiData]):
 
         assert isinstance(creator, ICreator)
         with open("label_testfile.dump", mode="rb") as f:
-            labels = pickle.load(f)
+            labels = pickle.load(f)  # noqa: S301 テスト内で保存したファイル
         assert len(labels) == 5
 
     finally:

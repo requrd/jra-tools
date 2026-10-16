@@ -20,14 +20,13 @@ def server() -> Generator[aioresponses, None, None]:
 
     """
     file_path = os.path.join(os.path.dirname(__file__), "yahoo_keiba.pkl")
-    with aioresponses() as m:
-        with open(file_path, mode="rb") as f:
-            m.get(
-                "https://sports.yahoo.co.jp/keiba/schedule/monthly?month=12&year=2018",
-                status=200,
-                body=pickle.load(f),
-            )
-            yield m
+    with aioresponses() as m, open(file_path, mode="rb") as f:
+        m.get(
+            "https://sports.yahoo.co.jp/keiba/schedule/monthly?month=12&year=2018",
+            status=200,
+            body=pickle.load(f),  # noqa: S301 リポジトリ内のテストデータ
+        )
+        yield m
 
 
 @pytest.mark.asyncio
@@ -56,11 +55,12 @@ async def test_open_days(server: aioresponses):
 
 @pytest.mark.asyncio
 async def test_annual_schedule(server: aioresponses):
-    """スケジューラをテストする
+    """スケジューラをテストする.
+
     12の並列リクエストの内、一つでもコネクションができないとエラーが発生する.
 
     Args:
-        mocker (MockFixture): モッカーオブジェクト
+        server (aioresponses): モックサーバー
 
     """
     with pytest.raises(ClientConnectionError) as e:

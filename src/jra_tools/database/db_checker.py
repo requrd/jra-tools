@@ -1,14 +1,18 @@
+"""DBに登録済みの開催日を確認する."""
+
 from jrdb_model import KaisaiData, create_app
 
 from . import schedule
 
 
 def missing_days(year):
+    """指定年の開催日のうち、DBに未登録の日付を返す."""
     open_days = schedule.annual_schedule(year)
     return sorted(set(open_days) - set(db_days(year)))
 
 
 def db_days(year):
+    """指定年の開催日のうち、DBに登録済みの日付を返す."""
     start_date = int(f"{year}0101")
     end_date = int(f"{year}1231")
     app = create_app()
@@ -16,4 +20,4 @@ def db_days(year):
         kaisais = KaisaiData.query.filter(
             KaisaiData.ymd >= start_date, KaisaiData.ymd <= end_date
         ).all()
-    return sorted(set([k.ymd for k in kaisais]))
+    return sorted({k.ymd for k in kaisais})
