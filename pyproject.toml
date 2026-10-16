@@ -29,8 +29,8 @@ file = "README.md"
 content-type = "text/markdown"
 
 [project.urls]
-Homepage = "https://github.com/astroripple/jra-tools"
-"Bug Tracker" = "https://github.com/astroripple/jra-tools/issues"
+Homepage = "https://github.com/requrd/jra-tools"
+"Bug Tracker" = "https://github.com/requrd/jra-tools/issues"
 
 [tool.setuptools]
 license-files = []

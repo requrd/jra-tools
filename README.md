@@ -1,6 +1,6 @@
 # jra-tools
 For jrdb view.
-https://github.com/astroripple/horseview
+https://github.com/requrd/horseview
 
 ## Usage
 ### Install

@@ -40,6 +40,6 @@ def test_predict(sample_kaisais: List[KaisaiData], v2_model: keras.Sequential):
     entities = factory.create()
 
     assert len(entities) == 363
-    assert entities[7].pp_icchaku == 0.2717929184436798
-    assert entities[7].pp_nichaku == 0.18553103506565094
-    assert entities[7].pp_sanchaku == 0.1153089627623558
+    assert entities[7].pp_icchaku == pytest.approx(0.2717929184436798)
+    assert entities[7].pp_nichaku == pytest.approx(0.18553103506565094)
+    assert entities[7].pp_sanchaku == pytest.approx(0.1153089627623558)
