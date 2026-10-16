@@ -251,13 +251,13 @@ class CategoryGetter:
         return self.categories(7, types[value])
 
     def getRestreasoncode(self, value):
-        """休養理由分類コードをone-hotベクトルに変換する."""
-        if 0 <= value <= 7:
-            return self.categories(11, value + 1)
-        if 11 <= value <= 16:
-            return self.categories(11, value - 2)
-        if value == 21:
-            return self.categories(11, 15)
+        """休養理由分類コードをone-hotベクトルに変換する.
+
+        0(休養なし)、01-07(放牧)、11-16(調整)、21(その他)の15種類.
+        """
+        codes = [0, 1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 21]
+        types = {code: i for i, code in enumerate(codes, start=1)}
+        return self.categories(len(codes), types[value])
 
     def getNorikaeflg(self, value):
         """乗替フラグをone-hotベクトルに変換する."""
