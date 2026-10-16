@@ -1,24 +1,51 @@
-name: Publish to PyPI
+name: Release
 
+# master に push されたとき、pyproject.toml のバージョンのタグがまだなければ
+# PyPI に公開し、タグと GitHub Release を作る。
 on:
-  release:
-    types: [published]
+  push:
+    branches: [master]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: ci
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      - name: Check tag matches project version
+      - name: Check whether this version is already released
+        id: version
         run: |
           version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
-          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject version v$version"
-            exit 1
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "v$version is already released; skipping."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: astral-sh/setup-uv@v6
-      - run: uv build
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - if: steps.version.outputs.release == 'true'
+        uses: astral-sh/setup-uv@v6
+      - if: steps.version.outputs.release == 'true'
+        run: uv build
+      - if: steps.version.outputs.release == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # 再実行時に公開済みのファイルでエラーにしない
+          skip-existing: true
+      - if: steps.version.outputs.release == 'true'
+        name: Create tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "$TAG" --generate-notes
