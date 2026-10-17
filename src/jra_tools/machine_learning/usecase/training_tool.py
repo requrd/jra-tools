@@ -109,6 +109,8 @@ def _race_scores(race: BangumiData):
 
 
 def _horse_scores(horse: RacehorseData) -> List:
+    if horse.calculated_score is None:
+        raise ValueError(f"calculated_score がありません: {horse.racehorsekey}")
     return [
         horse.idm,
         horse.jockey_score,

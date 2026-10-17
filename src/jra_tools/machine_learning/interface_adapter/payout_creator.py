@@ -23,6 +23,8 @@ def create_payout(kaisais: List[KaisaiData]) -> np.ndarray:
     num_race = 0
     for kaisai in kaisais:
         for race in kaisai.races:
+            if race.returninfo is None:
+                raise ValueError(f"払戻データがありません: {race.racekey}")
             payout_data[num_race, race.returninfo.win1_num - 1] = (
                 race.returninfo.win1_ret
             )

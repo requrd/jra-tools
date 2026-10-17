@@ -33,6 +33,8 @@ class LabelCreator:
         for kaisai in kaisais:
             for race in kaisai.races:
                 for horse in race.racehorses:
+                    if horse.result is None:
+                        raise ValueError(f"成績がありません: {horse.racehorsekey}")
                     label = labels_by_order.get(horse.result.order_of_arrival)
                     if label is not None:
                         label[w_num, horse.num - 1] = 1
