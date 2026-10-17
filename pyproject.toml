@@ -12,16 +12,16 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
-    "jrdb-model >= 0.2.10",
+    "jrdb-model >= 0.2.15",
     "beautifulsoup4 >=4.11.1",
     "scikit-learn >=1.6.1",
     "numpy >1.24.4",
     "lxml >= 4.9.0",
     "requests >=2.31.0",
     "aiohttp >=3.8.5",
-    "tensorflow>=2.18.0",
+    "tensorflow>=2.20.0",
 ]
 
 [project.readme]
@@ -62,5 +62,5 @@ dev = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["jrdb_model.*", "jrdb_model", "keras.*", "keras", "sklearn.*", "bs4"]
+module = ["keras.*", "keras", "sklearn.*", "bs4"]
 ignore_missing_imports = true

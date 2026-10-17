@@ -6,6 +6,7 @@ from typing import List
 from jrdb_model import (
     BangumiData,
     KaisaiData,
+    PredictData,
     PredictRaceData,
     RacehorseData,
 )
@@ -51,10 +52,17 @@ def umarenOdds(horse1, horse2):
     return 1 / p
 
 
-def umatanOdds(horse1, horse2):
+def _predict(horse: RacehorseData) -> PredictData:
+    if horse.predict is None:
+        raise ValueError(f"推論データがありません: {horse.racehorsekey}")
+    return horse.predict
+
+
+def umatanOdds(horse1: RacehorseData, horse2: RacehorseData):
     """horse1が1着、horse2が2着となる推定馬単オッズを返す."""
-    p1 = horse1.predict.pp_icchaku
-    p2 = horse2.predict.pp_nichaku / (1 - horse1.predict.pp_nichaku)
+    pred1, pred2 = _predict(horse1), _predict(horse2)
+    p1 = pred1.pp_icchaku
+    p2 = pred2.pp_nichaku / (1 - pred1.pp_nichaku)
     p = p1 * p2
     return 1 / p
 
@@ -85,21 +93,16 @@ def oddses(race: BangumiData, baken: str):
 
 def wideOdds(horse1: RacehorseData, horse2: RacehorseData):
     """2頭の推定ワイドオッズを返す."""
-    p = horse1.predict.pp_icchaku * horse2.predict.pp_nichaku / (
-        1 - horse1.predict.pp_nichaku
-    ) + horse1.predict.pp_icchaku * horse2.predict.pp_sanchaku / (
-        1 - horse1.predict.pp_sanchaku
-    )
-    p += horse1.predict.pp_nichaku * horse2.predict.pp_icchaku / (
-        1 - horse1.predict.pp_icchaku
-    ) + horse1.predict.pp_nichaku * horse2.predict.pp_sanchaku / (
-        1 - horse1.predict.pp_sanchaku
-    )
-    p += horse1.predict.pp_sanchaku * horse2.predict.pp_icchaku / (
-        1 - horse1.predict.pp_icchaku
-    ) + horse1.predict.pp_sanchaku * horse2.predict.pp_nichaku / (
-        1 - horse1.predict.pp_nichaku
-    )
+    pred1, pred2 = _predict(horse1), _predict(horse2)
+    p = pred1.pp_icchaku * pred2.pp_nichaku / (
+        1 - pred1.pp_nichaku
+    ) + pred1.pp_icchaku * pred2.pp_sanchaku / (1 - pred1.pp_sanchaku)
+    p += pred1.pp_nichaku * pred2.pp_icchaku / (
+        1 - pred1.pp_icchaku
+    ) + pred1.pp_nichaku * pred2.pp_sanchaku / (1 - pred1.pp_sanchaku)
+    p += pred1.pp_sanchaku * pred2.pp_icchaku / (
+        1 - pred1.pp_icchaku
+    ) + pred1.pp_sanchaku * pred2.pp_nichaku / (1 - pred1.pp_nichaku)
     return 1 / p
 
 
