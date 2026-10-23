@@ -1,21 +1,27 @@
 """推論データを生成する."""
 
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from jrdb_model import (
     KaisaiData,
     PredictData,
 )
-from keras import Model
 
 from jra_tools.machine_learning.interface_adapter.input_creator import InputCreator
+
+if TYPE_CHECKING:
+    from keras import Model
 
 
 class PredictFactory:
     """推論データ生成クラス."""
 
-    def __init__(self, kaisais: List[KaisaiData], model: Model):
+    def __init__(self, kaisais: List[KaisaiData], model: "Model"):
         """開催データとKerasモデルを検証して保持する."""
+        # Keras(TensorFlow)は読み込みに時間とメモリがかかる。jra_toolsは__init__.pyで
+        # 全モジュールを読み込むため、推論しない利用者が読み込まないよう、ここでimportする。
+        from keras import Model
+
         for kaisai in kaisais:
             if not isinstance(kaisai, KaisaiData):
                 raise TypeError("開催データではありません")
