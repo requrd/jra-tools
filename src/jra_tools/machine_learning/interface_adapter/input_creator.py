@@ -1,24 +1,31 @@
 """推論に必要なデータセットを作成する."""
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 from jrdb_model import KaisaiData
 
-from jra_tools.machine_learning.usecase.category_data import get_category_data
-from jra_tools.machine_learning.usecase.training_tool import (
-    create_score_data_matrix,
-    standardize,
+from jra_tools.machine_learning.entity.feature_spec import (
+    FeatureSpec,
+    default_feature_spec,
 )
+from jra_tools.machine_learning.usecase.feature_matrix import create_input_matrix
 
 
 class InputCreator:
     """KaisaiDataを元にndarrayを作成する."""
 
-    def __init__(self, kaisais: List[KaisaiData]):
-        """開催データから入力データを作る."""
+    def __init__(self, kaisais: List[KaisaiData], spec: Optional[FeatureSpec] = None):
+        """開催データから、特徴量の仕様に従って入力データを作る.
+
+        Args:
+            kaisais (List[KaisaiData]): 開催データ一覧
+            spec (Optional[FeatureSpec]): 特徴量の仕様. 省略時は現行の推論モデルの仕様
+
+        """
         self.kaisais = kaisais
-        self.x_data = create_input_data(kaisais)
+        self.spec = spec or default_feature_spec()
+        self.x_data = create_input_data(kaisais, self.spec)
 
     def save(self, name: str) -> None:
         """入力データを永続化する.
@@ -36,19 +43,20 @@ def save_input_data(x_data: np.ndarray, name: str) -> None:
         x_data.dump(f)
 
 
-def create_input_data(kaisais: List[KaisaiData]) -> np.ndarray:
+def create_input_data(
+    kaisais: List[KaisaiData], spec: Optional[FeatureSpec] = None
+) -> np.ndarray:
     """開催一覧から推論モデル用入力データを作成する.
 
     Args:
         kaisais (List[KaisaiData]): 開催一覧.
+        spec (Optional[FeatureSpec]): 特徴量の仕様. 省略時は現行の推論モデルの仕様
 
     Returns:
-        np.ndarray: 推論モデルの入力データ
+        np.ndarray: 推論モデルの入力データ[レース, 馬, 特徴量]
 
     """
-    score_data = standardize(create_score_data_matrix(kaisais))
-    cd = get_category_data(kaisais)
-    return np.concatenate((score_data, cd), axis=2)
+    return create_input_matrix(kaisais, spec or default_feature_spec())
 
 
 def save_input_data_from(kaisais: List[KaisaiData], name: str):
