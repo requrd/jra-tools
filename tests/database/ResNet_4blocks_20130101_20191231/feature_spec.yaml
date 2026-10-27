@@ -1,0 +1,44 @@
+name: resnet4_2013_2019
+max_horses: 18
+groups:
+- name: scores
+  transform: standardize_per_race
+  features:
+  - name: turf_baba_in
+    source: kaisai.turf_baba_in
+  - name: idm
+    source: racehorse.idm
+  - name: jockey_score
+    source: racehorse.jockey_score
+  - name: info_score
+    source: racehorse.info_score
+  - name: train_score
+    source: racehorse.train_score
+  - name: trainer_score
+    source: racehorse.trainer_score
+  - name: train_code
+    source: racehorse.train_code
+  - name: jockey_rate_rentai
+    source: racehorse.jockey_rate_rentai
+  - name: kakutoku_money
+    source: racehorse.kakutoku_money
+  - name: ls_score_order
+    source: racehorse.ls_score_order
+  - name: up_score_order
+    source: racehorse.up_score_order
+  - name: expect_jokey_win_rate
+    source: racehorse.expect_jokey_win_rate
+  - name: expect_jokey_rentai_rate
+    source: racehorse.expect_jokey_rentai_rate
+  - name: waku_win_rate
+    source: calculated_score.waku_win_rate
+  - name: waku_rentai_rate
+    source: calculated_score.waku_rentai_rate
+- name: categories
+  transform: none
+  features:
+  - name: waku
+    source: racehorse.waku
+    encode: onehot
+    size: 8
+    base: 1

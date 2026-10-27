@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import pytest
-import tensorflow as tf
 
 from jra_tools.machine_learning.entity.feature_spec import (
     Encode,
@@ -12,19 +11,19 @@ from jra_tools.machine_learning.entity.feature_spec import (
     default_feature_spec,
     load_feature_spec,
 )
+from jra_tools.machine_learning.infrastructure.model_feature_spec import (
+    saved_model_input_shape,
+)
 
 MODEL_DIR = Path(__file__).parents[2] / "database" / "ResNet_4blocks_20130101_20191231"
 
 
 def test_default_spec_matches_model():
     """同梱の仕様が、稼働中のモデルの入力の形と一致することを確認する."""
-    signature = tf.saved_model.load(str(MODEL_DIR)).signatures["serving_default"]
-    [input_spec] = signature.structured_input_signature[1].values()
-
     spec = default_feature_spec()
 
     assert spec.size == 23
-    spec.check_input_shape(input_spec.shape)
+    spec.check_input_shape(saved_model_input_shape(MODEL_DIR))
 
 
 def test_default_spec_groups():
