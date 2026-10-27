@@ -1,0 +1,30 @@
+# 現行の推論モデル(ResNet_4blocks_20130101_20191231)の入力の仕様。
+# 入力の形は(レース数, 18, 23)。次元はgroups・featuresの並び順のとおりに並ぶ。
+# 各馬の値は、馬番-1の位置に入れる。空き枠は0のまま。
+# 文字列の値は0にする。sourceの行がない(例: calculated_scoreが未登録)場合はエラーにする。
+name: resnet4_2013_2019
+max_horses: 18
+groups:
+  - name: scores
+    # レースごとにStandardScalerで標準化する(空き枠の0の行も含めた18行で計算する)
+    transform: standardize_per_race
+    features:
+      - {name: turf_baba_in, source: kaisai.turf_baba_in}
+      - {name: idm, source: racehorse.idm}
+      - {name: jockey_score, source: racehorse.jockey_score}
+      - {name: info_score, source: racehorse.info_score}
+      - {name: train_score, source: racehorse.train_score}
+      - {name: trainer_score, source: racehorse.trainer_score}
+      - {name: train_code, source: racehorse.train_code}
+      - {name: jockey_rate_rentai, source: racehorse.jockey_rate_rentai}
+      - {name: kakutoku_money, source: racehorse.kakutoku_money}
+      - {name: ls_score_order, source: racehorse.ls_score_order}
+      - {name: up_score_order, source: racehorse.up_score_order}
+      - {name: expect_jokey_win_rate, source: racehorse.expect_jokey_win_rate}
+      - {name: expect_jokey_rentai_rate, source: racehorse.expect_jokey_rentai_rate}
+      - {name: waku_win_rate, source: calculated_score.waku_win_rate}
+      - {name: waku_rentai_rate, source: calculated_score.waku_rentai_rate}
+  - name: categories
+    transform: none
+    features:
+      - {name: waku, source: racehorse.waku, encode: onehot, size: 8, base: 1}
