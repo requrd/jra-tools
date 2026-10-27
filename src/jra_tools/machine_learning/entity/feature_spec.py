@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from importlib import resources
 from pathlib import Path
-from typing import Any, Mapping, Sequence, Tuple
+from typing import Any, Dict, Mapping, Sequence, Tuple
 
 import yaml
 
@@ -137,10 +137,45 @@ def parse_feature_spec(data: Mapping[str, Any]) -> FeatureSpec:
     )
 
 
+def feature_spec_to_dict(spec: FeatureSpec) -> Dict[str, Any]:
+    """仕様を、parse_feature_specで読み戻せる辞書にする."""
+    return {
+        "name": spec.name,
+        "max_horses": spec.max_horses,
+        "groups": [
+            {
+                "name": group.name,
+                "transform": str(group.transform),
+                "features": [
+                    {"name": feature.name, "source": feature.source}
+                    if feature.encode == Encode.NUMBER
+                    else {
+                        "name": feature.name,
+                        "source": feature.source,
+                        "encode": str(feature.encode),
+                        "size": feature.size,
+                        "base": feature.base,
+                    }
+                    for feature in group.features
+                ],
+            }
+            for group in spec.groups
+        ],
+    }
+
+
 def load_feature_spec(path: Path | str) -> FeatureSpec:
     """YAMLファイルから仕様を読み込む."""
     with open(path, encoding="utf-8") as f:
         return parse_feature_spec(yaml.safe_load(f))
+
+
+def save_feature_spec(spec: FeatureSpec, path: Path | str) -> None:
+    """仕様をYAMLファイルに書き出す."""
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(
+            feature_spec_to_dict(spec), f, allow_unicode=True, sort_keys=False
+        )
 
 
 def default_feature_spec() -> FeatureSpec:

@@ -1,12 +1,13 @@
 """推論データを生成する."""
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from jrdb_model import (
     KaisaiData,
     PredictData,
 )
 
+from jra_tools.machine_learning.entity.feature_spec import FeatureSpec
 from jra_tools.machine_learning.interface_adapter.input_creator import InputCreator
 
 if TYPE_CHECKING:
@@ -16,8 +17,21 @@ if TYPE_CHECKING:
 class PredictFactory:
     """推論データ生成クラス."""
 
-    def __init__(self, kaisais: List[KaisaiData], model: "Model"):
-        """開催データとKerasモデルを検証して保持する."""
+    def __init__(
+        self,
+        kaisais: List[KaisaiData],
+        model: "Model",
+        spec: Optional[FeatureSpec] = None,
+    ):
+        """開催データとKerasモデルを検証して保持する.
+
+        Args:
+            kaisais (List[KaisaiData]): 開催データ一覧
+            model (Model): 推論モデル
+            spec (Optional[FeatureSpec]): モデルの特徴量の仕様(load_model_feature_specで
+                モデルのフォルダから読み込んだもの). 省略時は現行の推論モデルの仕様
+
+        """
         # Keras(TensorFlow)は読み込みに時間とメモリがかかる。jra_toolsは__init__.pyで
         # 全モジュールを読み込むため、推論しない利用者が読み込まないよう、ここでimportする。
         from keras import Model
@@ -30,6 +44,7 @@ class PredictFactory:
         if not isinstance(model, Model):
             raise TypeError("Keras V3のモデルではありません")
         self.model = model
+        self.spec = spec
 
     def create(self) -> List[PredictData]:
         """推論データを生成する.
@@ -38,7 +53,7 @@ class PredictFactory:
             List[PredictData]: 未登録の推論データ一覧
 
         """
-        input_data = InputCreator(self.kaisais)
+        input_data = InputCreator(self.kaisais, self.spec)
         preds = self.model.predict(input_data.x_data)
         w = 0
         entities = []
