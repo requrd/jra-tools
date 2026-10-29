@@ -370,7 +370,7 @@ wheels = [
 
 [[package]]
 name = "jra-tools"
-version = "0.1.3"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -401,7 +401,7 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.8.5" },
     { name = "beautifulsoup4", specifier = ">=4.11.1" },
-    { name = "jrdb-model", specifier = ">=0.2.15" },
+    { name = "jrdb-model", specifier = ">=0.3.0" },
     { name = "lxml", specifier = ">=4.9.0" },
     { name = "numpy", specifier = ">1.24.4" },
     { name = "pyyaml", specifier = ">=6.0" },
@@ -425,7 +425,7 @@ dev = [
 
 [[package]]
 name = "jrdb-model"
-version = "0.2.15"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "flask" },
@@ -434,9 +434,9 @@ dependencies = [
     { name = "pymysql" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/09/906550fbc5f1f348d7976a23fec3b7e27dd4036ffeb0e4289929fafc74f6/jrdb_model-0.2.15.tar.gz", hash = "sha256:9e52e8a9371e4cf4b8b1268537fe21d860f47c5f1532d9f5dd54ea9298ddcba5", size = 14149, upload-time = "2026-10-17T14:03:51.47Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/44/7f7ad2861b75a89761700d20e3afcf8d59d4dbcec312862f1c32ddec12c5/jrdb_model-0.3.0.tar.gz", hash = "sha256:bf13379b62caf7ea814178d3859d5bed6777bbee846ae11ae4d512c79e206e57", size = 14749, upload-time = "2026-10-29T06:02:08.205Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b5/2a/1873880dc5bb86535fa1aef1e537f65e3d209632ec0b69b26e94cf8b925e/jrdb_model-0.2.15-py3-none-any.whl", hash = "sha256:bf536d7b24ff1db58a64625d377345bab2a1f06adb07bdeddab3c8c5a6daeed3", size = 18191, upload-time = "2026-10-17T14:03:50.329Z" },
+    { url = "https://files.pythonhosted.org/packages/94/94/32bd4e1503c5c762a45d4a936236e827e425169c9639ca49de8190415459/jrdb_model-0.3.0-py3-none-any.whl", hash = "sha256:5abc9722ae05c869e2a0dd1c6a6c3b931b364eb0c86289ae018f13f7e4a9f98f", size = 18335, upload-time = "2026-10-29T06:02:06.844Z" },
 ]
 
 [[package]]
