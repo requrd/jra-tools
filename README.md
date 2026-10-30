@@ -7,6 +7,10 @@ https://github.com/requrd/horseview
 ```
 $pip install jra-tools
 ```
+分析用のPostgres(featuresのビュー)から読む場合は、ドライバ(psycopg)も入れる。
+```
+$pip install "jra-tools[postgres]"
+```
 ## Test
 ```
 $pip install jra_tools/
