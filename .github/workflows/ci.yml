@@ -34,5 +34,17 @@ jobs:
       - run: uv run ruff format --check src tests
       - run: uv run ruff check src tests
       - run: uv run mypy src
-      - run: uv run pytest
+      - run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+      # カバレッジをジョブの概要(Summary)に出す
+      - if: always() && hashFiles('coverage.xml') != ''
+        run: |
+          {
+            echo "## カバレッジ"
+            uv run coverage report --format=markdown
+          } >> "$GITHUB_STEP_SUMMARY"
+      - if: always() && hashFiles('coverage.xml') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage.xml
       - run: uv build

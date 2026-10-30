@@ -2,13 +2,19 @@
 
 仕様はYAMLで書き、学習に使った仕様をモデルと一緒に保存する。
 入力の次元は、groupsの並び順・featuresの並び順のとおりに並ぶ。
+
+値の読み方は2つある。
+- 最上位にsourceがない仕様: 各特徴量のsourceはjrdb-modelの「テーブル名.列名」。ORMの経路で読む
+- 最上位にsource(featuresのビュー「スキーマ.ビュー名」)がある仕様: 各特徴量のsourceは
+  そのビューの列名(省略するとname)。view_digestは学習時のビューの定義のハッシュで、
+  読み込むときにDBのビューと照合する(view_dataset)
 """
 
 from dataclasses import dataclass
 from enum import StrEnum
 from importlib import resources
 from pathlib import Path
-from typing import Any, Dict, Mapping, Sequence, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 import yaml
 
@@ -37,7 +43,7 @@ class Encode(StrEnum):
 class Feature:
     """1つの特徴量.
 
-    sourceは「テーブル名.列名」(例: racehorse.idm)。
+    sourceは、ORMの経路では「テーブル名.列名」(例: racehorse.idm)、ビューの経路では列名。
     onehotの場合、値がbaseのときに先頭の次元が1になる。
     """
 
@@ -48,10 +54,7 @@ class Feature:
     base: int = 1
 
     def __post_init__(self):
-        """sourceの書式とonehotの次元数を検証する."""
-        table, _, column = self.source.partition(".")
-        if not table or not column:
-            raise ValueError(f"sourceは「テーブル名.列名」で指定してください: {self}")
+        """onehotの次元数を検証する. sourceの書式はFeatureSpecが検証する."""
         if self.encode == Encode.ONEHOT and self.size < 1:
             raise ValueError(f"onehotのsizeは1以上を指定してください: {self}")
         if self.encode == Encode.NUMBER and self.size != 1:
@@ -84,11 +87,45 @@ class FeatureGroup:
 
 @dataclass(frozen=True)
 class FeatureSpec:
-    """推論モデルの入力の仕様. 入力の形は(レース数, max_horses, size)."""
+    """推論モデルの入力の仕様. 入力の形は(レース数, max_horses, size).
+
+    sourceはfeaturesのビュー(「スキーマ.ビュー名」)。Noneならjrdb-modelから読む(ORMの経路)。
+    view_digestは学習時のビューの定義のハッシュ(view_dataset.view_digest)。
+    """
 
     name: str
     max_horses: int
     groups: Tuple[FeatureGroup, ...]
+    source: Optional[str] = None
+    view_digest: Optional[str] = None
+
+    def __post_init__(self):
+        """sourceの書式を検証する."""
+        if self.source is None:
+            if self.view_digest is not None:
+                raise ValueError("view_digestはsource(ビュー)がある仕様にだけ書けます")
+            for feature in self.features:
+                table, _, column = feature.source.partition(".")
+                if not table or not column:
+                    raise ValueError(
+                        f"sourceは「テーブル名.列名」で指定してください: {feature}"
+                    )
+            return
+        schema, _, view = self.source.partition(".")
+        if not schema or not view:
+            raise ValueError(
+                f"仕様のsourceは「スキーマ.ビュー名」で指定してください: {self.source}"
+            )
+        for feature in self.features:
+            if "." in feature.source:
+                raise ValueError(
+                    f"ビューから読む仕様の特徴量のsourceは列名だけです: {feature}"
+                )
+
+    @property
+    def features(self) -> Tuple[Feature, ...]:
+        """すべての特徴量(groupsの並び順)."""
+        return tuple(feature for group in self.groups for feature in group.features)
 
     @property
     def size(self) -> int:
@@ -114,6 +151,7 @@ class FeatureSpec:
 
 def parse_feature_spec(data: Mapping[str, Any]) -> FeatureSpec:
     """辞書(YAMLを読み込んだもの)から仕様を作る."""
+    from_view = "source" in data
     return FeatureSpec(
         name=data["name"],
         max_horses=data["max_horses"],
@@ -124,7 +162,9 @@ def parse_feature_spec(data: Mapping[str, Any]) -> FeatureSpec:
                 features=tuple(
                     Feature(
                         name=feature["name"],
-                        source=feature["source"],
+                        source=feature.get("source", feature["name"])
+                        if from_view
+                        else feature["source"],
                         encode=Encode(feature.get("encode", Encode.NUMBER)),
                         size=feature.get("size", 1),
                         base=feature.get("base", 1),
@@ -134,14 +174,20 @@ def parse_feature_spec(data: Mapping[str, Any]) -> FeatureSpec:
             )
             for group in data["groups"]
         ),
+        source=data.get("source"),
+        view_digest=data.get("view_digest"),
     )
 
 
 def feature_spec_to_dict(spec: FeatureSpec) -> Dict[str, Any]:
     """仕様を、parse_feature_specで読み戻せる辞書にする."""
+    head: Dict[str, Any] = {"name": spec.name, "max_horses": spec.max_horses}
+    if spec.source is not None:
+        head["source"] = spec.source
+    if spec.view_digest is not None:
+        head["view_digest"] = spec.view_digest
     return {
-        "name": spec.name,
-        "max_horses": spec.max_horses,
+        **head,
         "groups": [
             {
                 "name": group.name,

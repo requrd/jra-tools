@@ -41,6 +41,7 @@ def create_input_matrix(kaisais: List[KaisaiData], spec: FeatureSpec) -> np.ndar
         np.ndarray: 入力データ[レース, 馬, 特徴量]
 
     """
+    _check_orm_spec(spec)
     matrices = []
     for group in spec.groups:
         matrix = create_group_matrix(kaisais, group, spec.max_horses)
@@ -91,6 +92,14 @@ def create_group_matrix(
                 ]
             )
     return matrix
+
+
+def _check_orm_spec(spec: FeatureSpec) -> None:
+    """ビューから読む仕様(最上位にsourceがある)は、この経路では使えない."""
+    if spec.source is not None:
+        raise ValueError(
+            f"仕様{spec.name}はビュー{spec.source}から読む仕様です(view_datasetを使ってください)"
+        )
 
 
 def _validate_sources(group: FeatureGroup) -> None:

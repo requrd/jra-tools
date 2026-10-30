@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jra-tools"
-version = "0.1.5"
+version = "0.1.6"
 authors = [{ name = "Requrd", email = "requrd1989@gmail.com" }]
 description = "Data Analisys Tools for JRDB"
 classifiers = [
@@ -23,6 +23,7 @@ dependencies = [
     "aiohttp >=3.8.5",
     "tensorflow>=2.20.0",
     "pyyaml>=6.0",
+    "pandas>=2.2",
 ]
 
 [project.readme]
@@ -57,9 +58,11 @@ docstring-code-format = true
 dev = [
     "aioresponses>=0.7.6",
     "mypy>=1.13.0",
+    "pandas-stubs>=3.1.0.261029",
     "psycopg[binary]>=3.2",
     "pymysql>=1.1.1",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=7.1.0",
     "pytest-mock>=3.14.0",
     "pytest>=8.3.3",
     "ruff>=0.9.5",
@@ -70,3 +73,11 @@ dev = [
 [[tool.mypy.overrides]]
 module = ["keras.*", "keras", "sklearn.*", "bs4"]
 ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["jra_tools"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

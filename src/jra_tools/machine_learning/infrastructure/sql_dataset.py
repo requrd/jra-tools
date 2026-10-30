@@ -27,6 +27,7 @@ from jra_tools.machine_learning.infrastructure.mysql_loader import (
     _to_date,
     _to_int,
 )
+from jra_tools.machine_learning.usecase.feature_matrix import _check_orm_spec
 from jra_tools.machine_learning.usecase.table_dataset import (
     DatasetRows,
     TableDataset,
@@ -150,6 +151,7 @@ def load_rows(
 
 
 def _sources(spec: FeatureSpec) -> List[Tuple[str, str]]:
+    _check_orm_spec(spec)
     sources = sorted({(f.table, f.column) for g in spec.groups for f in g.features})
     unknown = [f"{t}.{c}" for t, c in sources if t not in _ENTITIES]
     if unknown:

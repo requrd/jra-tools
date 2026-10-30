@@ -32,6 +32,16 @@ def sample_db(
     url = f"sqlite:///{tmp_path / 'sample.db'}"
     engine = create_engine(url)
     db.metadata.create_all(engine)
+    with engine.begin() as connection:
+        for name, table_rows in sample_rows(sample_kaisais).items():
+            connection.execute(db.metadata.tables[name].insert(), table_rows)
+    engine.dispose()
+    monkeypatch.setenv("DB", url)
+    return url
+
+
+def sample_rows(sample_kaisais: List[KaisaiData]) -> Dict[str, List[dict]]:
+    """sample_kaisaisの行を、テーブルごとに(外部キーの順に)まとめる."""
     rows: Dict[str, Dict[tuple, dict]] = {}
 
     def add(entity):
@@ -52,11 +62,8 @@ def sample_db(
                 add(horse)
                 for relation in _HORSE_RELATIONS:
                     add(getattr(horse, relation))
-    with engine.begin() as connection:
-        for name, table_rows in rows.items():
-            connection.execute(
-                db.metadata.tables[name].insert(), list(table_rows.values())
-            )
-    engine.dispose()
-    monkeypatch.setenv("DB", url)
-    return url
+    return {
+        table.name: list(rows[table.name].values())
+        for table in db.metadata.sorted_tables
+        if table.name in rows
+    }
