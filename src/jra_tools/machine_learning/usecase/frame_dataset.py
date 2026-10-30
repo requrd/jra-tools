@@ -4,6 +4,16 @@ featuresのビューから読んだ表を、仕様に従って(レース, max_ho
 各レースを1〜max_horsesの枠に並べ(空き枠は0)、グループごとに変換してから最後にndarrayにする。
 結果は、今の経路(table_dataset.assemble_dataset)と浮動小数点の誤差の範囲で同じ。
 
+処理の場所(どの変換をするかはコードではなく仕様で決まる):
+- 枠への並べ直し: to_slots
+- 特徴量ごとの列への変換: _group_frame。仕様のencodeがonehotなら_onehot、それ以外は_number
+  - _number: 数値にする。文字列は0
+  - _onehot: one-hot(カテゴリ系。例: 枠番)。値がbaseのとき先頭が1。空き枠はすべて0
+- レースごとの標準化(数値系): _group_frameの中。グループのtransformが
+  standardize_per_raceのとき、列ごとに、レース内の全枠(空き枠の0を含む)の平均・標準偏差で
+  標準化する
+- テンソルへの変換: frame_to_inputの最後のreshape
+
 DataFrameの列:
 - racekey・umabanと、仕様の各特徴量のsourceの列。行はレースごとにまとまって並んでいること
 - 学習用はさらに finish_order(着順)・win1_num・win1_ret(単勝の払戻。レースの値)
