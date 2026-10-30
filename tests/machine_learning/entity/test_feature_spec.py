@@ -10,6 +10,8 @@ from jra_tools.machine_learning.entity.feature_spec import (
     Transform,
     default_feature_spec,
     load_feature_spec,
+    parse_feature_spec,
+    save_feature_spec,
 )
 from jra_tools.machine_learning.infrastructure.model_feature_spec import (
     saved_model_input_shape,
@@ -68,7 +70,6 @@ def test_load_feature_spec(tmp_path: Path):
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
-        ({"source": "idm"}, "テーブル名.列名"),
         ({"source": "racehorse.waku", "encode": Encode.ONEHOT, "size": 0}, "1以上"),
         ({"source": "racehorse.idm", "size": 2}, "numberのsizeは1"),
     ],
@@ -77,3 +78,97 @@ def test_invalid_feature(kwargs, message):
     """不正な特徴量の定義がエラーになることを確認する."""
     with pytest.raises(ValueError, match=message):
         Feature(name="x", **kwargs)
+
+
+def _data(**head):
+    return {
+        "name": "sample",
+        "max_horses": 18,
+        **head,
+        "groups": [
+            {
+                "name": "g",
+                "transform": "none",
+                "features": [
+                    {"name": "idm"},
+                    {
+                        "name": "waku",
+                        "source": "waku_no",
+                        "encode": "onehot",
+                        "size": 8,
+                    },
+                ],
+            }
+        ],
+    }
+
+
+def test_view_spec(tmp_path: Path):
+    """ビューから読む仕様: 特徴量のsourceは列名で、省略するとnameになる. 書き出して読み戻せる."""
+    spec = parse_feature_spec(_data(source="features.entries_v1", view_digest="abc"))
+    path = tmp_path / "spec.yaml"
+    save_feature_spec(spec, path)
+
+    assert spec.source == "features.entries_v1"
+    assert spec.view_digest == "abc"
+    assert [f.source for f in spec.features] == ["idm", "waku_no"]
+    assert load_feature_spec(path) == spec
+
+
+def test_orm_spec_has_no_view_fields(tmp_path: Path):
+    """今の本番モデルの仕様は、ビューの項目を持たず、書き出しても増えない."""
+    spec = default_feature_spec()
+    path = tmp_path / "spec.yaml"
+    save_feature_spec(spec, path)
+
+    assert spec.source is None
+    assert spec.view_digest is None
+    assert "source: features" not in path.read_text(encoding="utf-8")
+    assert "view_digest" not in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        (
+            {
+                **_data(),
+                "groups": [
+                    {
+                        "name": "g",
+                        "transform": "none",
+                        "features": [{"name": "idm", "source": "idm"}],
+                    }
+                ],
+            },
+            "テーブル名.列名",
+        ),
+        (_data(source="entries_v1"), "スキーマ.ビュー名"),
+        (
+            {
+                **_data(source="features.entries_v1"),
+                "groups": [
+                    {
+                        "name": "g",
+                        "transform": "none",
+                        "features": [{"name": "idm", "source": "racehorse.idm"}],
+                    }
+                ],
+            },
+            "列名だけ",
+        ),
+    ],
+)
+def test_invalid_source(data, message):
+    """sourceの書式が仕様の読み方と合わないとエラーになる."""
+    with pytest.raises(ValueError, match=message):
+        parse_feature_spec(data)
+
+
+def test_digest_without_source():
+    """view_digestはビューから読む仕様にだけ書ける."""
+    data = {**_data(), "view_digest": "abc"}
+    data["groups"][0]["features"] = [{"name": "idm", "source": "racehorse.idm"}]
+
+    with pytest.raises(ValueError, match="view_digest"):
+        parse_feature_spec(data)
