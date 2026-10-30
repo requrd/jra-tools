@@ -19,6 +19,7 @@ from jra_tools.machine_learning.infrastructure.view_dataset import (
     load_view_dataset,
     load_view_input,
     pin_view_digest,
+    read_view_frame,
     view_digest,
 )
 from tests.machine_learning.infrastructure.conftest import sample_rows
@@ -128,7 +129,8 @@ def test_same_as_sql_dataset(engine: Engine, sample_kaisais: List[KaisaiData]):
 
     assert len(actual.racekeys) == 24
     assert list(actual.racekeys) == list(expected.racekeys)
-    assert np.array_equal(actual.x, expected.x)
+    # レースごとの標準化の計算の順が違うため、浮動小数点の誤差の範囲で一致
+    assert np.allclose(actual.x, expected.x, rtol=0, atol=1e-9)
     for a, e in zip(actual.labels, expected.labels, strict=True):
         assert np.array_equal(a, e)
     assert np.array_equal(actual.payout, expected.payout)
@@ -252,3 +254,31 @@ def test_view_spec_rejected_by_orm_path(engine: Engine, sample_kaisais):
     start, end = _period(sample_kaisais)
     with engine.connect() as conn, pytest.raises(ValueError, match="ビュー"):
         load_dataset(conn, _view_spec(), start, end)
+
+
+def test_read_view_frame(engine: Engine, sample_kaisais: List[KaisaiData]):
+    """1頭1行の表を、開催日・レースキー・馬番の順で読める. 推論ではラベルを読まない."""
+    spec = pin_view_digest(engine, _view_spec())
+    start, end = _period(sample_kaisais)
+
+    frame = read_view_frame(engine, spec, start, end)
+    inputs = read_view_frame(engine, spec, start, end, labels=None)
+
+    horses = sum(len(r.racehorses) for k in sample_kaisais for r in k.races)
+    assert len(frame) == horses
+    assert {"finish_order", "win1_num", "win1_ret"} <= set(frame.columns)
+    assert "_label" not in frame.columns
+    assert "finish_order" not in inputs.columns
+    assert frame[["racekey", "umaban"]].equals(inputs[["racekey", "umaban"]])
+    assert frame["racekey"].is_monotonic_increasing or len(sample_kaisais) > 1
+
+
+def test_label_column_as_feature(engine: Engine, sample_kaisais: List[KaisaiData]):
+    """確定後の値(ラベルの列)を入力に使う仕様は止める."""
+    spec = pin_view_digest(engine, _view_spec())
+    feature = dataclasses.replace(spec.groups[0].features[0], source="finish_order")
+    group = dataclasses.replace(spec.groups[0], features=(feature,))
+    spec = dataclasses.replace(spec, groups=(group, *spec.groups[1:]))
+
+    with pytest.raises(ValueError, match="ラベルの列は入力に使えません"):
+        load_view_input(engine, spec, sample_kaisais[0].ymd)

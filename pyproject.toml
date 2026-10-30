@@ -23,6 +23,7 @@ dependencies = [
     "aiohttp >=3.8.5",
     "tensorflow>=2.20.0",
     "pyyaml>=6.0",
+    "pandas>=2.2",
 ]
 
 [project.readme]
@@ -57,6 +58,7 @@ docstring-code-format = true
 dev = [
     "aioresponses>=0.7.6",
     "mypy>=1.13.0",
+    "pandas-stubs>=3.1.0.261029",
     "psycopg[binary]>=3.2",
     "pymysql>=1.1.1",
     "pytest-asyncio>=0.24.0",

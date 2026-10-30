@@ -24,36 +24,20 @@ LABEL_ORDERS = 5
 
 
 @dataclass(frozen=True)
-class InputRows:
-    """出走1頭を1行とする入力の列. 行はレースごとにまとまって並んでいること.
+class DatasetRows:
+    """出走1頭を1行とする列. 行はレースごとにまとまって並んでいること.
 
-    featuresは仕様のsourceごとの値。
+    featuresは仕様のsourceごとの値。払戻(win1_num・win1_ret)はレースの値で、
+    同じレースの行には同じ値が入る。
     """
 
     racehorsekeys: np.ndarray
     racekeys: np.ndarray
     nums: np.ndarray
     features: Dict[str, np.ndarray]
-
-
-@dataclass(frozen=True)
-class DatasetRows(InputRows):
-    """入力の列に、正解ラベル・払戻の列を足したもの.
-
-    払戻(win1_num・win1_ret)はレースの値で、同じレースの行には同じ値が入る。
-    """
-
     order_of_arrival: np.ndarray
     win1_num: np.ndarray
     win1_ret: np.ndarray
-
-
-@dataclass(frozen=True)
-class InputDataset:
-    """推論の入力. racekeysはxの1次元目の各レース."""
-
-    racekeys: np.ndarray
-    x: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -95,38 +79,17 @@ def assemble_dataset(rows: DatasetRows, spec: FeatureSpec) -> TableDataset:
         TableDataset: 学習用のデータセット
 
     """
-    inputs = assemble_input(rows, spec)
-    race_index, _ = _race_index(rows.racekeys)
-    slots = _slots(rows, spec.max_horses)
-    shape = (len(inputs.racekeys), spec.max_horses)
-    return TableDataset(
-        racekeys=inputs.racekeys,
-        x=inputs.x,
-        labels=_labels(rows, race_index, slots, shape),
-        payout=_payout(rows, race_index, shape),
-    )
-
-
-def assemble_input(rows: InputRows, spec: FeatureSpec) -> InputDataset:
-    """出走ごとの列から、仕様に従って入力だけを組み立てる(推論用).
-
-    Args:
-        rows (InputRows): 出走ごとの入力の列
-        spec (FeatureSpec): 特徴量の仕様
-
-    Returns:
-        InputDataset: 入力と、各レースのレースキー
-
-    """
     race_index, racekeys = _race_index(rows.racekeys)
     slots = _slots(rows, spec.max_horses)
     shape = (len(racekeys), spec.max_horses)
-    return InputDataset(
+    return TableDataset(
         racekeys=racekeys,
         x=np.concatenate(
             [_group_matrix(rows, g, race_index, slots, shape) for g in spec.groups],
             axis=2,
         ),
+        labels=_labels(rows, race_index, slots, shape),
+        payout=_payout(rows, race_index, shape),
     )
 
 
@@ -141,7 +104,7 @@ def _race_index(racekeys: np.ndarray):
     return race_index, racekeys[starts]
 
 
-def _slots(rows: InputRows, max_horses: int) -> np.ndarray:
+def _slots(rows: DatasetRows, max_horses: int) -> np.ndarray:
     nums = rows.nums.astype(int)
     invalid = (nums < 1) | (nums > max_horses)
     if invalid.any():
@@ -150,7 +113,7 @@ def _slots(rows: InputRows, max_horses: int) -> np.ndarray:
 
 
 def _group_matrix(
-    rows: InputRows,
+    rows: DatasetRows,
     group: FeatureGroup,
     race_index: np.ndarray,
     slots: np.ndarray,
