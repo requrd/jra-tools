@@ -470,7 +470,7 @@ wheels = [
 
 [[package]]
 name = "jra-tools"
-version = "0.1.6"
+version = "0.1.7"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -483,6 +483,11 @@ dependencies = [
     { name = "requests" },
     { name = "scikit-learn" },
     { name = "tensorflow" },
+]
+
+[package.optional-dependencies]
+postgres = [
+    { name = "psycopg", extra = ["binary"] },
 ]
 
 [package.dev-dependencies]
@@ -509,11 +514,13 @@ requires-dist = [
     { name = "lxml", specifier = ">=4.9.0" },
     { name = "numpy", specifier = ">1.24.4" },
     { name = "pandas", specifier = ">=2.2" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "scikit-learn", specifier = ">=1.6.1" },
     { name = "tensorflow", specifier = ">=2.20.0" },
 ]
+provides-extras = ["postgres"]
 
 [package.metadata.requires-dev]
 dev = [
