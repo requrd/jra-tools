@@ -100,3 +100,25 @@ frame = read_view_frame(engine, spec, 20250101, 20251231)  # 組み立てる前�
 - 1回の読み込みは1トランザクションで、先にビューを共有ロックする(読み終わるまで`apply_views`に作り直されない)。学習は1年ずつ読む
 - `predict_finish_probabilities`は確率だけを素の値で返す(連対率・オッズは使う側のビューで出す)。`model.predict(x)`は`activation_4`・`activation_5`・`activation_6`(1・2・3着)の`(レース, 18)`を返すこと(`PredictFactory`と同じ出力)。出走のない日は空
 - 値のない出走(NULL)があれば止める(今の経路の「行がなければエラー」と同じ)。文字列は0にする
+
+### 入力のビューを確かめる(`check_input_view`)
+試作(sandbox)のビューを含む入力のビューが、学習・推論に使える形かを、期間内の実データで確かめる。仕様(`view_digest`)はまだ要らない。
+
+```python
+from jra_tools.machine_learning.infrastructure.input_view_check import check_input_view
+
+problems = check_input_view(engine, "sandbox.entries_try1", 20250101, 20251231)
+for p in problems:  # すべて通れば空
+    print(p.check, p.rows, p.examples)  # 例: unique 3 ('0125...', ...)
+```
+
+| check | 確かめること |
+|---|---|
+| `columns` | キーの列(`racehorsekey`・`racekey`・`race_date`・`umaban`)と、確かめる特徴量の列がある。足りなければこれだけを返す |
+| `unique` | 出走馬1頭につき1行 |
+| `covers_entries` | model層の出走馬(`model.entries`、`model.races`の`race_date`が期間内)がすべて出る。内部結合で黙って消えていない |
+| `not_null:<列>` | 特徴量の列に値なしがない(ビューから読む経路は値なしで止まる) |
+
+- 確かめる特徴量の列は`features`で指定する。省略するとキーの列以外のすべての列
+- ラベルの列(`finish_order`など)を特徴量にしていれば止まる
+- 読み取り専用のトランザクションで流す。全期間の`covers_entries`は重い(実データで1本20秒前後)ので、試作のうちは期間を絞る
