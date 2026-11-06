@@ -1,5 +1,6 @@
 """ビューの反映の結合テスト. 環境変数TEST_POSTGRESのPostgresを使う(なければ飛ばす)."""
 
+import logging
 import os
 import threading
 import uuid
@@ -24,7 +25,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 FILES = {
-    "functions.sql": "create function model.twice(x int) returns int"
+    "functions.sql": "create or replace function model.twice(x int) returns int"
     " language sql immutable return x * 2;",
     "model/races.sql": "select racekey, model.twice(distance) as distance2"
     " from staging.races where name like '%S';",
@@ -155,20 +156,131 @@ def test_drops_views_and_functions_removed_from_definition(engine: Engine):
 
 
 def test_stops_when_a_table_uses_a_function(engine: Engine):
-    """表の列の既定値が関数を使っていれば、関数を黙って消さずに止まり、全体が戻る."""
+    """表の列の既定値が使う関数を定義から外すと、黙って消さずに止まり、全体が戻る."""
     view_set = _view_set()
     apply_views(engine, view_set)
     with engine.begin() as conn:
         conn.exec_driver_sql("create table model.uses (x int default model.twice(1))")
-    changed = {
-        **FILES,
-        "features/entries.sql": "select racekey, 1 as x from model.races",
+    without = {
+        "model/races.sql": "select racekey from staging.races",
+        "features/entries.sql": "select racekey from model.races",
     }
+    data = {"schemas": ["model", "features"], "views": DATA["views"]}
     with pytest.raises(DBAPIError):
-        apply_views(engine, _view_set(changed))
+        apply_views(engine, parse_view_set(data, without.__getitem__))
     with engine.connect() as conn:
         assert conn.execute(text("select count(*) from features.entries")).scalar() == 1
         assert applied_digest(conn) == view_set.digest
+
+
+def _sandbox(engine: Engine, *views: str) -> None:
+    with engine.begin() as conn:
+        conn.exec_driver_sql("create schema if not exists sandbox")
+        for sql in views:
+            conn.exec_driver_sql(sql)
+
+
+def _exists(engine: Engine, name: str) -> bool:
+    with engine.connect() as conn:
+        return (
+            conn.execute(text("select to_regclass(:n)"), {"n": name}).scalar()
+            is not None
+        )
+
+
+def test_keeps_sandbox_views_when_columns_stay(engine: Engine, caplog):
+    """列が同じか末尾に足すだけなら、その場で置き換え、依存するsandboxのビューが残る."""
+    apply_views(engine, _view_set())
+    _sandbox(
+        engine,
+        "create view sandbox.mine as select * from features.entries",
+        "create view sandbox.on_mine as select count(*) as n from sandbox.mine",
+        "create view sandbox.uses_function as select model.twice(3) as six",
+    )
+    changed = {
+        **FILES,
+        "functions.sql": "create or replace function model.twice(x int) returns int"
+        " language sql immutable return x + x;",
+        "model/races.sql": "select racekey, model.twice(distance) as distance2,"
+        " name from staging.races",
+        "features/entries.sql": "select racekey, distance2 from model.races",
+    }
+    with caplog.at_level(logging.INFO, logger="jra_tools.views.apply"):
+        assert apply_views(engine, _view_set(changed))
+    assert "作り直します" not in caplog.text
+    assert "消えます" not in caplog.text
+    with engine.connect() as conn:
+        assert conn.execute(text("select n from sandbox.on_mine")).scalar() == 2
+        assert conn.execute(text("select six from sandbox.uses_function")).scalar() == 6
+        columns = conn.execute(text("select * from features.entries")).keys()
+        assert list(columns) == ["racekey", "distance2"]
+
+
+def test_rebuilds_and_names_sandbox_views_when_columns_change(engine: Engine, caplog):
+    """列を消すと作り直し、消えるsandboxのビュー(関数だけを使うものも)の名前をログに残す."""
+    apply_views(engine, _view_set())
+    _sandbox(
+        engine,
+        "create view sandbox.mine as select * from features.entries",
+        "create view sandbox.on_mine as select count(*) as n from sandbox.mine",
+        "create materialized view sandbox.snapshot as select * from model.races",
+        "create view sandbox.uses_function as select model.twice(3) as six",
+        "create view sandbox.unrelated as select 1 as one",
+    )
+    changed = {
+        **FILES,
+        "model/races.sql": "select racekey as key from staging.races",
+        "features/entries.sql": "select key from model.races",
+    }
+    with caplog.at_level(logging.INFO, logger="jra_tools.views.apply"):
+        assert apply_views(engine, _view_set(changed))
+    assert "作り直します" in caplog.text
+    dropped = [r.getMessage() for r in caplog.records if "消えます" in r.getMessage()]
+    assert len(dropped) == 1
+    for name in ("mine", "on_mine", "snapshot", "uses_function"):
+        assert f"sandbox.{name}" in dropped[0]
+        assert not _exists(engine, f"sandbox.{name}")
+    assert "unrelated" not in dropped[0]
+    assert _exists(engine, "sandbox.unrelated")
+
+
+def test_rebuilds_when_functions_are_not_replaceable(engine: Engine, caplog):
+    """CREATE OR REPLACEで書いていない関数は置き換えられないので、作り直す."""
+    plain = {
+        **FILES,
+        "functions.sql": "create function model.twice(x int) returns int"
+        " language sql immutable return x * 2;",
+    }
+    apply_views(engine, _view_set(plain))
+    _sandbox(engine, "create view sandbox.mine as select * from features.entries")
+    changed = {
+        **plain,
+        "features/entries.sql": "select racekey, 1 as x from model.races",
+    }
+    with caplog.at_level(logging.INFO, logger="jra_tools.views.apply"):
+        assert apply_views(engine, _view_set(changed))
+    assert "作り直します" in caplog.text
+    assert "sandbox.mine" in caplog.text
+    assert not _exists(engine, "sandbox.mine")
+
+
+def test_names_sandbox_views_on_views_removed_from_definition(engine: Engine, caplog):
+    """定義から外したビューに依存するsandboxのビューは消え、名前をログに残す. ほかは残る."""
+    on_extra = {**FILES, "model/extra.sql": "select racekey from staging.races"}
+    data = {**DATA, "views": [*DATA["views"], "model.extra"]}
+    apply_views(engine, parse_view_set(data, on_extra.__getitem__))
+    _sandbox(
+        engine,
+        "create view sandbox.on_extra as select * from model.extra",
+        "create view sandbox.mine as select * from features.entries",
+    )
+    with caplog.at_level(logging.INFO, logger="jra_tools.views.apply"):
+        assert apply_views(engine, _view_set())
+    assert "作り直します" not in caplog.text
+    assert "sandbox.on_extra" in caplog.text
+    assert not _exists(engine, "sandbox.on_extra")
+    assert not _exists(engine, "model.extra")
+    assert _exists(engine, "sandbox.mine")
 
 
 def test_failed_definition_keeps_current_views(engine: Engine):
@@ -247,3 +359,33 @@ def test_concurrent_applies_run_one_at_a_time(engine: Engine):
     for t in threads:
         t.join()
     assert sorted(results) == [False, True]
+
+
+def test_drops_only_functions_removed_from_definition_in_place(engine: Engine, caplog):
+    """その場で置き換えるときも、定義から外した関数だけを消し、sandboxのビューは残る."""
+    two = {
+        **FILES,
+        "functions.sql": FILES["functions.sql"]
+        + "\ncreate or replace function model.thrice(x int) returns int"
+        " language sql immutable return x * 3;",
+    }
+    apply_views(engine, _view_set(two))
+    _sandbox(engine, "create view sandbox.mine as select * from features.entries")
+    without_thrice = {
+        **FILES,
+        "model/races.sql": "select racekey, distance * 2 as distance2"
+        " from staging.races where name like '%S';",
+    }
+    with caplog.at_level(logging.INFO, logger="jra_tools.views.apply"):
+        assert apply_views(engine, _view_set(without_thrice))
+    assert "作り直します" not in caplog.text
+    with engine.connect() as conn:
+        assert (
+            conn.execute(text("select to_regprocedure('model.thrice(int)')")).scalar()
+            is None
+        )
+        assert (
+            conn.execute(text("select to_regprocedure('model.twice(int)')")).scalar()
+            is not None
+        )
+    assert _exists(engine, "sandbox.mine")
