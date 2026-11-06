@@ -44,12 +44,15 @@ apply_views(engine, view_set, ApplyOptions(readers=("sazanami_ro",), label="xxxx
 failures = run_view_tests(engine, view_set)  # CIで使う
 ```
 
-- `apply_views`は、定義(views.yaml・関数・ビューのSQL)のハッシュが`meta.view_version`の最後の記録と同じなら何もしない。違えば1トランザクションで、`schemas`のスキーマのビューと関数を消して作り直し、`readers`に読む権限を付け、ハッシュを記録する
+- `apply_views`は、定義(views.yaml・関数・ビューのSQL)のハッシュが`meta.view_version`の最後の記録と同じなら何もしない。違えば1トランザクションでビューと関数を反映し、`readers`に読む権限を付け、ハッシュを記録する
 - スキーマは消さない(なければ作る)。同じスキーマに置いた表・マテリアライズドビュー(推論の結果など)と、拡張機能が作ったものには触らない
 - `meta.view_version`は作らない。なければ`ViewVersionTableMissing`で止まる。表を作るのは使う側(sazanami-batchの`apply-model-and-meta-tables`)
+- 反映は、まず今のビュー・関数をその場で置き換える(`CREATE OR REPLACE`)。ほかのスキーマに置いた、これらに依存するビュー(sandboxの試作など)は残る。定義から外したビュー・関数だけを消す
+  - 関数は`create or replace function`で書く(`create function`だと、あるものを作れず、下の作り直しになる)
+  - ビューは、列が同じか末尾に足すだけなら置き換えられる
+- 置き換えられないとき(ビューの列を消す・改名する・型を変える、関数の戻り値の型を変えるなど)は、`schemas`のスキーマのビューと関数をすべて消して作り直す。依存するほかのスキーマのビュー(関数だけを使うものを含む)も消え、その名前を警告のログに残す
 - 関数はCASCADEで消さない。表の列の既定値などが関数を使っていれば、エラーで止まる(全体が戻る)
 - 定義とstagingの列が合わなければ`CREATE VIEW`でPostgresがエラーにし、全体が戻る(今のビューと記録が残る)
-- ビューを消すと、ほかのスキーマに置いた、これらのビューに依存するビュー(sandboxなど)も消える
 - 読んでいる最中のクエリがあると、ビューを消す排他ロックを待つ。`lock_timeout`(既定10秒)で諦め、間を置いて`retries`回(既定5回)やり直す
 - 同時に流しても、advisory lockで1つずつ動く
 - テストはハッシュに含めない(テストだけを変えても作り直さない)
