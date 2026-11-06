@@ -25,6 +25,7 @@ import pandas as pd
 from sqlalchemy import Connection, Engine, text
 
 from jra_tools.machine_learning.entity.feature_spec import FeatureSpec
+from jra_tools.machine_learning.entity.input_view import ENTRY_COLUMNS, LABEL_COLUMNS
 from jra_tools.machine_learning.infrastructure.mysql_loader import _periods, _to_date
 from jra_tools.machine_learning.usecase.frame_dataset import (
     InputDataset,
@@ -33,10 +34,6 @@ from jra_tools.machine_learning.usecase.frame_dataset import (
 )
 from jra_tools.machine_learning.usecase.table_dataset import TableDataset
 
-# 入力のビューに必要な列
-ENTRY_COLUMNS = ("racehorsekey", "racekey", "race_date", "umaban")
-# ラベルのビューに必要な列
-LABEL_COLUMNS = ("racehorsekey", "finish_order", "win1_num", "win1_ret")
 # 表でラベルのビューの行の有無を表す列
 _LABEL_MARKER = "_label"
 # 既定のラベルのビュー

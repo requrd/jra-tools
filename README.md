@@ -105,12 +105,17 @@ frame = read_view_frame(engine, spec, 20250101, 20251231)  # 組み立てる前�
 試作(sandbox)のビューを含む入力のビューが、学習・推論に使える形かを、期間内の実データで確かめる。仕様(`view_digest`)はまだ要らない。
 
 ```python
-from jra_tools.machine_learning.infrastructure.input_view_check import check_input_view
+from jra_tools.machine_learning.infrastructure.input_view_query import PostgresInputViewQuery
+from jra_tools.machine_learning.usecase.check_input_view import check_input_view
 
-problems = check_input_view(engine, "sandbox.entries_try1", 20250101, 20251231)
-for p in problems:  # すべて通れば空
+query = PostgresInputViewQuery(engine, "sandbox.entries_try1", 20250101, 20251231)
+problems = check_input_view(query)  # すべて通れば空
+for p in problems:
     print(p.check, p.rows, p.examples)  # 例: unique 3 ('0125...', ...)
 ```
+
+- 層の分け方:確かめる決まり(列の契約・ラベルの列は使えない・省略時はキー以外を見る・例は先頭5件)は`entity/input_view.py`、手続き(列が足りなければほかは確かめない)は`usecase/check_input_view.py`とそのインターフェース`usecase/iinput_view_query.py`、SQLは`infrastructure/input_view_query.py`(`PostgresInputViewQuery`)
+- 入力のビュー・ラベルのビューの列の契約(`ENTRY_COLUMNS`・`LABEL_COLUMNS`)も`entity/input_view.py`に置く(`view_dataset`はそれを読む)
 
 | check | 確かめること |
 |---|---|
