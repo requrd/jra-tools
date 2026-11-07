@@ -22,11 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.engine import Connection
 
 from jra_tools.machine_learning.entity.feature_spec import FeatureSpec
-from jra_tools.machine_learning.infrastructure.mysql_loader import (
-    _periods,
-    _to_date,
-    _to_int,
-)
+from jra_tools.machine_learning.entity.period import year_periods
 from jra_tools.machine_learning.usecase.feature_matrix import _check_orm_spec
 from jra_tools.machine_learning.usecase.table_dataset import (
     DatasetRows,
@@ -76,10 +72,7 @@ def load_dataset(
         TableDataset: 学習用のデータセット。レースは開催日・開催キー・レースキーの順
 
     """
-    chunks = [
-        load_rows(connection, spec, _to_int(s), _to_int(e))
-        for s, e in _periods(_to_date(start), _to_date(end))
-    ]
+    chunks = [load_rows(connection, spec, s, e) for s, e in year_periods(start, end)]
     return assemble_dataset(_concat(chunks, spec), spec)
 
 
