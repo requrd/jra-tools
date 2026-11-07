@@ -100,3 +100,16 @@ frame = read_view_frame(engine, spec, 20250101, 20251231)  # 組み立てる前�
 - 1回の読み込みは1トランザクションで、先にビューを共有ロックする(読み終わるまで`apply_views`に作り直されない)。学習は1年ずつ読む
 - `predict_finish_probabilities`は確率だけを素の値で返す(連対率・オッズは使う側のビューで出す)。`model.predict(x)`は`activation_4`・`activation_5`・`activation_6`(1・2・3着)の`(レース, 18)`を返すこと(`PredictFactory`と同じ出力)。出走のない日は空
 - 値のない出走(NULL)があれば止める(今の経路の「行がなければエラー」と同じ)。文字列は0にする
+- 置き場所(`machine_learning`の層):決まり(列の契約・ハッシュの照合・値なし)は`entity/input_view.py`、1年ずつに分けるのは`entity/period.py`、手続きは`usecase/view_dataset.py`(読む先は`usecase/iview_reader.py`の`IViewReader`、モデルは`usecase/ifinish_model.py`の`IFinishModel`)、SQLは`infrastructure/postgres_view_reader.py`。`infrastructure/view_dataset.py`は、Postgresのエンジンを受け取ってusecaseを呼ぶ入口(上の使い方の関数はここ)
+
+## 層から外れているもの(ORMの経路)
+`machine_learning`はクリーンアーキテクチャの層(entity・usecase・interface_adapter・infrastructure)で分けているが、ORM(jrdb-model)の経路には外れが残っている。本番MariaDBの推論(`PredictFactory`→`InputCreator`→`feature_matrix`)が通るため、MariaDBのバッチを廃止するときにまとめて直す(それまで動かさない)。`InputCreator`・`LabelCreator`の`from jra_tools import ...`は使う側(Jupyter)があるので残す。
+
+| ファイル | 外れ | あるべき先 |
+|---|---|---|
+| `usecase/feature_matrix.py`・`training_tool.py`・`category_data.py`・`converter.py`・`iquery.py`・`icreator.py` | usecaseがjrdb-model(ORMのオブジェクト)に依存している | ORMのオブジェクトを行列にするのは変換なのでinterface_adapter |
+| `infrastructure/sql_dataset.py` | usecaseの非公開の`_check_orm_spec`をimportしている | 上と合わせて公開の決まりにする |
+| `usecase/table_dataset.py`の`TableDataset.save` | usecaseがファイルを書いている | 保存はinterface_adapter(ファイルの形式)+infrastructure |
+| `interface_adapter/iioloader.py` | どこからも使われていない | 削除 |
+| `machine_learning/util.py` | 組み立て(`create_app`・`MysqlLoader`をつなぐ)で、層の外にある | 入口と分かる名前・場所に |
+| `interface_adapter/payout_creator.py` | 冒頭の説明が「DB周りのユーティリティ」 | 中身(払戻の行列)に合わせる |
