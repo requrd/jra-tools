@@ -12,12 +12,11 @@ import pytest
 from jrdb_model import KaisaiData, db
 from sqlalchemy import Engine, create_engine, text
 
-from jra_tools.machine_learning import features
+from jra_tools.machine_learning import features, staging
 from jra_tools.machine_learning.entity.feature_spec import (
     FeatureSpec,
     parse_feature_spec,
 )
-from jra_tools.machine_learning.infrastructure.spec_files import default_feature_spec
 from tests.machine_learning.conftest import sample_rows
 
 pytestmark = pytest.mark.skipif(
@@ -73,7 +72,7 @@ def _view_spec() -> FeatureSpec:
                     for f in group.features
                 ],
             }
-            for group in default_feature_spec().groups
+            for group in staging.default_feature_spec().groups
         ],
     }
     return parse_feature_spec(data)

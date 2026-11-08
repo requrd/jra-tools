@@ -1,6 +1,7 @@
 """ビューから読む手続きのユニットテスト. 読み手は偽物(DBを使わない).
 
-SQL・Postgresを通す確認は、tests/machine_learning/infrastructure/test_integration_view_dataset.py。
+Postgresを通す確認は、入口のtests/machine_learning/test_integration_features.pyと、
+tests/machine_learning/infrastructure/test_integration_postgres_view_reader.py。
 """
 
 import dataclasses

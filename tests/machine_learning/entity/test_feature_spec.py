@@ -1,74 +1,38 @@
 """特徴量の仕様のユニットテスト."""
 
 from datetime import date
-from pathlib import Path
 
 import pytest
 
 from jra_tools.machine_learning.entity.feature_spec import (
     Encode,
     Feature,
-    Transform,
     check_jrdb_spec,
+    feature_spec_to_dict,
     parse_feature_spec,
 )
-from jra_tools.machine_learning.infrastructure.saved_model_folder import (
-    SavedModelFolder,
+
+# jrdb-modelの表から読む仕様(最上位にsourceがない)
+JRDB_SPEC = parse_feature_spec(
+    {
+        "name": "jrdb",
+        "max_horses": 18,
+        "groups": [
+            {
+                "name": "g",
+                "transform": "none",
+                "features": [{"name": "idm", "source": "racehorse.idm"}],
+            }
+        ],
+    }
 )
-from jra_tools.machine_learning.infrastructure.spec_files import (
-    default_feature_spec,
-    load_feature_spec,
-    save_feature_spec,
-)
-
-MODEL_DIR = Path(__file__).parents[2] / "database" / "ResNet_4blocks_20130101_20191231"
 
 
-def test_default_spec_matches_model():
-    """同梱の仕様が、稼働中のモデルの入力の形と一致することを確認する."""
-    spec = default_feature_spec()
-
-    assert spec.size == 23
-    spec.check_input_shape(SavedModelFolder(MODEL_DIR).input_shape())
-
-
-def test_default_spec_groups():
-    """同梱の仕様のグループと次元数を確認する."""
-    spec = default_feature_spec()
-
-    assert [(g.name, g.transform, g.size) for g in spec.groups] == [
-        ("scores", Transform.STANDARDIZE_PER_RACE, 15),
-        ("categories", Transform.NONE, 8),
-    ]
-
-
-def test_check_input_shape_mismatch():
-    """入力の形が仕様と一致しないとエラーになることを確認する."""
+def test_check_input_shape():
+    """入力の形が仕様と一致すれば通し、一致しないとエラーになる."""
+    JRDB_SPEC.check_input_shape((None, 18, 1))
     with pytest.raises(ValueError, match="一致しません"):
-        default_feature_spec().check_input_shape((None, 18, 22))
-
-
-def test_load_feature_spec(tmp_path: Path):
-    """YAMLファイルから仕様を読み込めることを確認する."""
-    path = tmp_path / "spec.yaml"
-    path.write_text(
-        "name: sample\n"
-        "max_horses: 18\n"
-        "groups:\n"
-        "  - name: g\n"
-        "    transform: none\n"
-        "    features:\n"
-        "      - {name: idm, source: racehorse.idm}\n"
-        "      - {name: waku, source: racehorse.waku, encode: onehot, size: 8}\n",
-        encoding="utf-8",
-    )
-
-    spec = load_feature_spec(path)
-
-    assert spec.size == 9
-    assert spec.groups[0].features[1] == Feature(
-        "waku", "racehorse.waku", Encode.ONEHOT, 8, 1
-    )
+        JRDB_SPEC.check_input_shape((None, 18, 2))
 
 
 @pytest.mark.parametrize(
@@ -107,28 +71,24 @@ def _data(**head):
     }
 
 
-def test_view_spec(tmp_path: Path):
-    """ビューから読む仕様: 特徴量のsourceは列名で、省略するとnameになる. 書き出して読み戻せる."""
+def test_view_spec():
+    """特徴量の層から読む仕様: 特徴量のsourceは列名で、省略するとnameになる. 辞書にして読み戻せる."""
     spec = parse_feature_spec(_data(source="features.entries_v1", view_digest="abc"))
-    path = tmp_path / "spec.yaml"
-    save_feature_spec(spec, path)
 
     assert spec.source == "features.entries_v1"
     assert spec.view_digest == "abc"
     assert [f.source for f in spec.features] == ["idm", "waku_no"]
-    assert load_feature_spec(path) == spec
+    assert parse_feature_spec(feature_spec_to_dict(spec)) == spec
 
 
-def test_orm_spec_has_no_view_fields(tmp_path: Path):
-    """今の本番モデルの仕様は、ビューの項目を持たず、書き出しても増えない."""
-    spec = default_feature_spec()
-    path = tmp_path / "spec.yaml"
-    save_feature_spec(spec, path)
+def test_jrdb_spec_has_no_view_fields():
+    """jrdb-modelの表から読む仕様は、sourceの項目を持たず、辞書にしても増えない."""
+    data = feature_spec_to_dict(JRDB_SPEC)
 
-    assert spec.source is None
-    assert spec.view_digest is None
-    assert "source: features" not in path.read_text(encoding="utf-8")
-    assert "view_digest" not in path.read_text(encoding="utf-8")
+    assert JRDB_SPEC.source is None
+    assert JRDB_SPEC.view_digest is None
+    assert not {"source", "view_digest", "train_from", "train_to"} & set(data)
+    assert parse_feature_spec(data) == JRDB_SPEC
 
 
 @pytest.mark.parametrize(
@@ -178,8 +138,8 @@ def test_digest_without_source():
         parse_feature_spec(data)
 
 
-def test_training_period(tmp_path: Path):
-    """学習期間を書いた仕様は、日付として読み、書き出して読み戻せる."""
+def test_training_period():
+    """学習期間を書いた仕様は、日付として読み、辞書にして読み戻せる."""
     spec = parse_feature_spec(
         _data(
             source="features.entries_v1",
@@ -187,23 +147,9 @@ def test_training_period(tmp_path: Path):
             train_to="2019-12-31",
         )
     )
-    path = tmp_path / "spec.yaml"
-    save_feature_spec(spec, path)
-
     assert (spec.train_from, spec.train_to) == (date(2013, 1, 1), date(2019, 12, 31))
-    assert "train_from: 2013-01-01" in path.read_text(encoding="utf-8")
-    assert load_feature_spec(path) == spec
-
-
-def test_training_period_is_optional(tmp_path: Path):
-    """学習期間は省略でき、書き出しても増えない."""
-    spec = default_feature_spec()
-    path = tmp_path / "spec.yaml"
-    save_feature_spec(spec, path)
-
-    assert (spec.train_from, spec.train_to) == (None, None)
-    assert "train_from" not in path.read_text(encoding="utf-8")
-    assert "train_to" not in path.read_text(encoding="utf-8")
+    assert feature_spec_to_dict(spec)["train_from"] == date(2013, 1, 1)
+    assert parse_feature_spec(feature_spec_to_dict(spec)) == spec
 
 
 @pytest.mark.parametrize(
@@ -221,7 +167,7 @@ def test_invalid_training_period(period, message):
 
 def test_check_jrdb_spec():
     """jrdb-modelの表から読む仕様は通し、sourceのある仕様は止める."""
-    check_jrdb_spec(default_feature_spec())
+    check_jrdb_spec(JRDB_SPEC)
     spec = parse_feature_spec(
         {
             "name": "from_features",

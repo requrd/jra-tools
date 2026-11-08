@@ -16,7 +16,6 @@ from jra_tools.machine_learning.entity.input_view import (
     input_columns,
     source_view,
 )
-from jra_tools.machine_learning.infrastructure.spec_files import default_feature_spec
 
 SPEC = parse_feature_spec(
     {
@@ -44,7 +43,21 @@ def test_source_view():
     """入力のビューは仕様のsource. なければjrdb-modelの仕様なので止める."""
     assert source_view(SPEC) == "sandbox.entries_try"
     with pytest.raises(ValueError, match="jrdb-modelから読む仕様"):
-        source_view(default_feature_spec())
+        source_view(
+            parse_feature_spec(
+                {
+                    "name": "jrdb",
+                    "max_horses": 4,
+                    "groups": [
+                        {
+                            "name": "g",
+                            "transform": "none",
+                            "features": [{"name": "idm", "source": "racehorse.idm"}],
+                        }
+                    ],
+                }
+            )
+        )
 
 
 def test_input_columns():
