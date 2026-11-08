@@ -23,6 +23,7 @@ from jra_tools.machine_learning.entity.feature_spec import (
     parse_feature_spec,
 )
 from jra_tools.machine_learning.entity.input_view import DEFAULT_LABELS
+from jra_tools.machine_learning.entity.jrdbdummies import CategoryGetter
 from jra_tools.machine_learning.infrastructure.postgres_view_reader import (
     PostgresViewReader,
 )
@@ -38,6 +39,7 @@ from jra_tools.machine_learning.usecase.ifinish_model import IFinishModel
 
 __all__ = [
     "DEFAULT_LABELS",
+    "CategoryGetter",
     "FeatureSpec",
     "digest",
     "load_dataset",
