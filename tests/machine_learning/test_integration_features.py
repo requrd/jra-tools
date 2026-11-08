@@ -1,4 +1,7 @@
-"""ビューから読むデータセットの結合テスト. 環境変数TEST_POSTGRESのPostgresを使う(なければ飛ばす)."""
+"""特徴量の層から読む入口(features)の結合テスト. 環境変数TEST_POSTGRESのPostgresを使う(なければ飛ばす).
+
+入口は接続先を環境変数DBから読むので、DBにTEST_POSTGRESを設定して呼ぶ。
+"""
 
 import dataclasses
 import os
@@ -9,20 +12,13 @@ import pytest
 from jrdb_model import KaisaiData, db
 from sqlalchemy import Engine, create_engine, text
 
+from jra_tools.machine_learning import features
 from jra_tools.machine_learning.entity.feature_spec import (
     FeatureSpec,
     default_feature_spec,
     parse_feature_spec,
 )
 from jra_tools.machine_learning.infrastructure.sql_dataset import load_dataset
-from jra_tools.machine_learning.infrastructure.view_dataset import (
-    load_view_dataset,
-    load_view_input,
-    pin_view_digest,
-    predict_finish_probabilities,
-    read_view_frame,
-    view_digest,
-)
 from tests.machine_learning.infrastructure.conftest import sample_rows
 
 pytestmark = pytest.mark.skipif(
@@ -91,8 +87,11 @@ def _drop(engine: Engine) -> None:
 
 
 @pytest.fixture
-def engine(sample_kaisais: List[KaisaiData]) -> Iterator[Engine]:
-    """sample_kaisaisをstagingに登録し、entries_v1・labels_v1を作ったPostgres."""
+def engine(
+    sample_kaisais: List[KaisaiData], monkeypatch: pytest.MonkeyPatch
+) -> Iterator[Engine]:
+    """sample_kaisaisをstagingに登録し、entries_v1・labels_v1を作ったPostgres. DBにも設定する."""
+    monkeypatch.setenv("DB", os.environ["TEST_POSTGRES"])
     engine = create_engine(
         os.environ["TEST_POSTGRES"],
         connect_args={"options": "-csearch_path=staging"},
@@ -124,9 +123,9 @@ def test_same_as_sql_dataset(engine: Engine, sample_kaisais: List[KaisaiData]):
     start, end = _period(sample_kaisais)
     with engine.connect() as conn:
         expected = load_dataset(conn, default_feature_spec(), start, end)
-    spec = pin_view_digest(engine, _view_spec())
+    spec = features.pin_digest(_view_spec())
 
-    actual = load_view_dataset(engine, spec, start, end)
+    actual = features.load_dataset(spec, start, end)
 
     assert len(actual.racekeys) == 24
     assert list(actual.racekeys) == list(expected.racekeys)
@@ -137,58 +136,42 @@ def test_same_as_sql_dataset(engine: Engine, sample_kaisais: List[KaisaiData]):
     assert np.array_equal(actual.payout, expected.payout)
 
 
-def test_load_view_input(engine: Engine, sample_kaisais: List[KaisaiData]):
+def test_load_input(engine: Engine, sample_kaisais: List[KaisaiData]):
     """開催日の入力が、学習用のデータセットのその日の分と同じになる."""
-    spec = pin_view_digest(engine, _view_spec())
+    spec = features.pin_digest(_view_spec())
     start, end = _period(sample_kaisais)
-    dataset = load_view_dataset(engine, spec, start, end)
+    dataset = features.load_dataset(spec, start, end)
     ymd = sample_kaisais[0].ymd
     day_racekeys = {
         race.racekey for k in sample_kaisais if k.ymd == ymd for race in k.races
     }
 
-    inputs = load_view_input(engine, spec, ymd)
+    inputs = features.load_input(spec, ymd)
 
     assert set(inputs.racekeys) == day_racekeys
     index = [list(dataset.racekeys).index(key) for key in inputs.racekeys]
     assert np.array_equal(inputs.x, dataset.x[index])
 
 
-def test_digest_is_per_view(engine: Engine):
-    """関係のないビューを足してもハッシュは変わらず、依存する定義を変えると変わる."""
-    with engine.connect() as conn:
-        before = view_digest(conn, "features.entries_v1")
-    with engine.begin() as conn:
-        conn.exec_driver_sql(
-            "create view features.entries_v2 as select racehorsekey from features.entries_v1"
-        )
-    with engine.connect() as conn:
-        assert view_digest(conn, "features.entries_v1") == before
-    with engine.begin() as conn:
-        conn.exec_driver_sql(
-            "create or replace function model.jrdb_date(v integer) returns date"
-            " language sql immutable return to_date(v::text, 'YYYYMMDD') + 0"
-        )
-    with engine.connect() as conn:
-        assert view_digest(conn, "features.entries_v1") != before
+def test_digest(engine: Engine):
+    """sourceの今のハッシュ. pin_digestが仕様に書く値と同じ. なければ止める."""
+    assert features.digest("features.entries_v1") == (
+        features.pin_digest(_view_spec()).view_digest
+    )
+    with pytest.raises(ValueError, match="ビューがありません: features.no_such"):
+        features.digest("features.no_such")
 
 
-def test_digest_ignores_search_path(engine: Engine):
-    """接続のsearch_pathが違っても、同じハッシュになる."""
-    other = create_engine(os.environ["TEST_POSTGRES"])
-    try:
-        with engine.connect() as a, other.connect() as b:
-            assert view_digest(a, "features.entries_v1") == view_digest(
-                b, "features.entries_v1"
-            )
-            assert a.execute(text("show search_path")).scalar() == "staging"
-    finally:
-        other.dispose()
+def test_db_required(engine: Engine, monkeypatch: pytest.MonkeyPatch):
+    """接続先(環境変数DB)がなければ止める."""
+    monkeypatch.delenv("DB")
+    with pytest.raises(RuntimeError, match="環境変数DB"):
+        features.digest("features.entries_v1")
 
 
 def test_digest_mismatch(engine: Engine, sample_kaisais: List[KaisaiData]):
     """学習時とビューの定義が違うと、読み込みを止める."""
-    spec = pin_view_digest(engine, _view_spec())
+    spec = features.pin_digest(_view_spec())
     with engine.begin() as conn:
         conn.exec_driver_sql(
             "create or replace function model.jrdb_date(v integer) returns date"
@@ -196,18 +179,18 @@ def test_digest_mismatch(engine: Engine, sample_kaisais: List[KaisaiData]):
         )
 
     with pytest.raises(ValueError, match="学習時と違います"):
-        load_view_input(engine, spec, sample_kaisais[0].ymd)
+        features.load_input(spec, sample_kaisais[0].ymd)
 
 
 def test_digest_required(engine: Engine, sample_kaisais: List[KaisaiData]):
     """view_digestのない仕様では読まない."""
     with pytest.raises(ValueError, match="view_digestがありません"):
-        load_view_input(engine, _view_spec(), sample_kaisais[0].ymd)
+        features.load_input(_view_spec(), sample_kaisais[0].ymd)
 
 
 def test_missing_column(engine: Engine, sample_kaisais: List[KaisaiData]):
     """ビューにない列を仕様が使うと止める."""
-    spec = pin_view_digest(engine, _view_spec())
+    spec = features.pin_digest(_view_spec())
     group = dataclasses.replace(
         spec.groups[0],
         features=(
@@ -218,7 +201,7 @@ def test_missing_column(engine: Engine, sample_kaisais: List[KaisaiData]):
     spec = dataclasses.replace(spec, groups=(group, *spec.groups[1:]))
 
     with pytest.raises(ValueError, match=r"列がありません: \['no_such'\]"):
-        load_view_input(engine, spec, sample_kaisais[0].ymd)
+        features.load_input(spec, sample_kaisais[0].ymd)
 
 
 @pytest.mark.parametrize(
@@ -238,7 +221,7 @@ def test_missing_row(
 ):
     """値のない出走があると止める(ORMの経路の「行がなければエラー」と同じ)."""
     horse = sample_kaisais[0].races[0].racehorses[0]
-    spec = pin_view_digest(engine, _view_spec())
+    spec = features.pin_digest(_view_spec())
     with engine.begin() as conn:
         conn.execute(
             text(f"delete from staging.{table} where {key} = :v"),  # noqa: S608 テストの固定値
@@ -247,7 +230,7 @@ def test_missing_row(
     start, end = _period(sample_kaisais)
 
     with pytest.raises(ValueError, match=message):
-        load_view_dataset(engine, spec, start, end)
+        features.load_dataset(spec, start, end)
 
 
 def test_view_spec_rejected_by_orm_path(engine: Engine, sample_kaisais):
@@ -257,13 +240,13 @@ def test_view_spec_rejected_by_orm_path(engine: Engine, sample_kaisais):
         load_dataset(conn, _view_spec(), start, end)
 
 
-def test_read_view_frame(engine: Engine, sample_kaisais: List[KaisaiData]):
+def test_read_frame(engine: Engine, sample_kaisais: List[KaisaiData]):
     """1頭1行の表を、開催日・レースキー・馬番の順で読める. 推論ではラベルを読まない."""
-    spec = pin_view_digest(engine, _view_spec())
+    spec = features.pin_digest(_view_spec())
     start, end = _period(sample_kaisais)
 
-    frame = read_view_frame(engine, spec, start, end)
-    inputs = read_view_frame(engine, spec, start, end, labels=None)
+    frame = features.read_frame(spec, start, end)
+    inputs = features.read_frame(spec, start, end, labels=None)
 
     horses = sum(len(r.racehorses) for k in sample_kaisais for r in k.races)
     assert len(frame) == horses
@@ -276,13 +259,13 @@ def test_read_view_frame(engine: Engine, sample_kaisais: List[KaisaiData]):
 
 def test_label_column_as_feature(engine: Engine, sample_kaisais: List[KaisaiData]):
     """確定後の値(ラベルの列)を入力に使う仕様は止める."""
-    spec = pin_view_digest(engine, _view_spec())
+    spec = features.pin_digest(_view_spec())
     feature = dataclasses.replace(spec.groups[0].features[0], source="finish_order")
     group = dataclasses.replace(spec.groups[0], features=(feature,))
     spec = dataclasses.replace(spec, groups=(group, *spec.groups[1:]))
 
     with pytest.raises(ValueError, match="ラベルの列は入力に使えません"):
-        load_view_input(engine, spec, sample_kaisais[0].ymd)
+        features.load_input(spec, sample_kaisais[0].ymd)
 
 
 class _FakeModel:
@@ -304,12 +287,12 @@ class _FakeModel:
 
 def test_predict_finish_probabilities(engine: Engine, sample_kaisais: List[KaisaiData]):
     """出走馬ごとに、その馬のレース・馬番の枠の確率を返す. 入力はload_view_inputと同じ."""
-    spec = pin_view_digest(engine, _view_spec())
+    spec = features.pin_digest(_view_spec())
     ymd = sample_kaisais[0].ymd
-    inputs = load_view_input(engine, spec, ymd)
+    inputs = features.load_input(spec, ymd)
     model = _FakeModel()
 
-    actual = predict_finish_probabilities(engine, spec, ymd, model)
+    actual = features.predict_finish_probabilities(spec, ymd, model)
 
     assert np.array_equal(model.x, inputs.x)
     horses = [
@@ -333,8 +316,8 @@ def test_predict_finish_probabilities(engine: Engine, sample_kaisais: List[Kaisa
 
 def test_predict_finish_probabilities_no_races(engine: Engine):
     """出走のない日は、モデルを呼ばずに空を返す."""
-    spec = pin_view_digest(engine, _view_spec())
+    spec = features.pin_digest(_view_spec())
     model = _FakeModel()
 
-    assert predict_finish_probabilities(engine, spec, 19000101, model) == []
+    assert features.predict_finish_probabilities(spec, 19000101, model) == []
     assert model.x is None

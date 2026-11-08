@@ -44,6 +44,18 @@ from jra_tools.machine_learning.usecase.table_dataset import TableDataset
 _KEYS = ("racehorsekey", "racekey", "umaban")
 
 
+def current_digest(reader: IViewReader, view: str) -> str:
+    """ビュー(「スキーマ.ビュー名」)の今の定義のハッシュ.
+
+    Raises:
+        ValueError: ビューがない場合
+
+    """
+    with reader.session() as session:
+        _check_exists(session, view)
+        return session.digest(view)
+
+
 def pin_view_digest(reader: IViewReader, spec: FeatureSpec) -> FeatureSpec:
     """仕様のview_digestを、今のビューのハッシュにした仕様を返す(学習の前に使う).
 
