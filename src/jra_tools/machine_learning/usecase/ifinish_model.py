@@ -4,7 +4,7 @@ from typing import Any, Mapping, Protocol
 
 import numpy as np
 
-# モデルの出力のうち、1着・2着・3着の確率(PredictFactoryと同じ)
+# モデルの出力のうち、1着・2着・3着の確率(本番モデルの出力の名前)
 PROBABILITY_OUTPUTS = ("activation_4", "activation_5", "activation_6")
 
 

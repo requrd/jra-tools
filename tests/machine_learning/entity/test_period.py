@@ -2,7 +2,11 @@
 
 import pytest
 
-from jra_tools.machine_learning.entity.period import year_periods
+from jra_tools.machine_learning.entity.period import (
+    quarter_period,
+    training_period,
+    year_periods,
+)
 
 
 def test_same_year():
@@ -30,3 +34,37 @@ def test_reversed(start, end):
     """開始日が終了日より後なら止める."""
     with pytest.raises(RuntimeError, match="開始日 <= 終了日"):
         year_periods(start, end)
+
+
+def test_training_period():
+    """開始年の1月1日から終了年の12月31日まで."""
+    assert training_period(2013, 2019) == (20130101, 20191231)
+
+
+@pytest.mark.parametrize(
+    ("quarter", "expected"),
+    [
+        (1, (20250101, 20250331)),
+        (2, (20250401, 20250630)),
+        (3, (20250701, 20250930)),
+        (4, (20251001, 20251231)),
+    ],
+)
+def test_quarter_period(quarter, expected):
+    """四半期の初日から末日まで."""
+    assert quarter_period(2025, quarter) == expected
+
+
+@pytest.mark.parametrize(
+    ("call", "error", "message"),
+    [
+        (lambda: training_period(2019, 2013), ValueError, "終了年は開始年以降"),
+        (lambda: training_period(1999, 2013), ValueError, "2000年以降"),
+        (lambda: training_period("2013", 2019), TypeError, "整数"),
+        (lambda: quarter_period(2025, 5), ValueError, "1 - 4"),
+    ],
+)
+def test_invalid_period(call, error, message):
+    """年・四半期が範囲外なら止める."""
+    with pytest.raises(error, match=message):
+        call()

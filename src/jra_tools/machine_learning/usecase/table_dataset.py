@@ -1,15 +1,15 @@
 """出走ごとの列(表)から、学習用のデータセット(入力・正解ラベル・払戻)を組み立てる.
 
-ORMのオブジェクトを作らずに、列単位のndarrayから組み立てる。
-結果は、ORMの開催データから作る場合(InputCreator・LabelCreator・PayoutCreator)と同じ。
+列単位のndarrayから組み立てる。結果は、jra-tools 0.6.0までのORMの経路
+(InputCreator・LabelCreator・PayoutCreator)と同じ(tests/machine_learning/data/の値で確かめる)。
 """
 
-import pickle
-from dataclasses import dataclass
 from typing import Dict, List
 
 import numpy as np
+from sklearn.preprocessing import StandardScaler
 
+from jra_tools.machine_learning.entity.dataset import DatasetRows, TableDataset
 from jra_tools.machine_learning.entity.feature_spec import (
     Encode,
     Feature,
@@ -17,55 +17,24 @@ from jra_tools.machine_learning.entity.feature_spec import (
     FeatureSpec,
     Transform,
 )
-from jra_tools.machine_learning.usecase.feature_matrix import standardize
 
 # 正解ラベルを作る着順(1着〜5着)
 LABEL_ORDERS = 5
 
 
-@dataclass(frozen=True)
-class DatasetRows:
-    """出走1頭を1行とする列. 行はレースごとにまとまって並んでいること.
+def standardize(matrix: np.ndarray) -> np.ndarray:
+    """レースごとに標準化する. 空き枠の0の行も含めて計算する.
 
-    featuresは仕様のsourceごとの値。払戻(win1_num・win1_ret)はレースの値で、
-    同じレースの行には同じ値が入る。
+    Args:
+        matrix (np.ndarray): 数値データ行列[レース, 馬, 特徴量]
+
+    Returns:
+        np.ndarray: 標準化済み行列(引数の行列を書き換えて返す)
+
     """
-
-    racehorsekeys: np.ndarray
-    racekeys: np.ndarray
-    nums: np.ndarray
-    features: Dict[str, np.ndarray]
-    order_of_arrival: np.ndarray
-    win1_num: np.ndarray
-    win1_ret: np.ndarray
-
-
-@dataclass(frozen=True)
-class TableDataset:
-    """学習用のデータセット. racekeysはx・labels・payoutの1次元目の各レース."""
-
-    racekeys: np.ndarray
-    x: np.ndarray
-    labels: List[np.ndarray]
-    payout: np.ndarray
-
-    def save(self, name: str) -> None:
-        """InputCreator・LabelCreator・PayoutCreatorと同じファイルに保存する.
-
-        x_{name}.dump(入力)、{name}.dump(正解ラベル)、payout_{name}.dump(払戻)と、
-        各レースのレースキーをracekeys_{name}.npyに保存する。
-
-        Args:
-            name (str): ファイル名(拡張子を除く)
-
-        """
-        with open(f"x_{name}.dump", mode="wb") as f:
-            self.x.dump(f)
-        with open(f"{name}.dump", mode="wb") as f:
-            pickle.dump(self.labels, f)
-        with open(f"payout_{name}.dump", "wb") as f:
-            self.payout.dump(f)
-        np.save(f"racekeys_{name}.npy", self.racekeys)
+    for i, element in enumerate(matrix):
+        matrix[i] = StandardScaler().fit_transform(element)
+    return matrix
 
 
 def assemble_dataset(rows: DatasetRows, spec: FeatureSpec) -> TableDataset:
@@ -134,7 +103,7 @@ def _group_matrix(
 
 
 def _numbers(values: np.ndarray) -> np.ndarray:
-    """数値にする. 文字列は0にする(ORMの経路の_encodeと同じ)."""
+    """数値にする. 文字列は0にする."""
     return np.array([0 if isinstance(v, str) else v for v in values], dtype=float)
 
 

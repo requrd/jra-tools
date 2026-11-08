@@ -4,16 +4,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from jra_tools.machine_learning.entity.dataset import DatasetRows
 from jra_tools.machine_learning.entity.feature_spec import parse_feature_spec
 from jra_tools.machine_learning.usecase.frame_dataset import (
     frame_to_dataset,
     frame_to_input,
     to_slots,
 )
-from jra_tools.machine_learning.usecase.table_dataset import (
-    DatasetRows,
-    assemble_dataset,
-)
+from jra_tools.machine_learning.usecase.table_dataset import assemble_dataset
 
 SPEC = parse_feature_spec(
     {

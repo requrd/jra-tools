@@ -15,6 +15,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from jra_tools.machine_learning.entity.dataset import InputDataset, TableDataset
 from jra_tools.machine_learning.entity.feature_spec import FeatureSpec
 from jra_tools.machine_learning.entity.input_view import (
     DEFAULT_LABELS,
@@ -29,7 +30,6 @@ from jra_tools.machine_learning.entity.input_view import (
 )
 from jra_tools.machine_learning.entity.period import year_periods
 from jra_tools.machine_learning.usecase.frame_dataset import (
-    InputDataset,
     frame_to_dataset,
     frame_to_input,
 )
@@ -38,7 +38,6 @@ from jra_tools.machine_learning.usecase.ifinish_model import (
     IFinishModel,
 )
 from jra_tools.machine_learning.usecase.iview_reader import IViewReader, IViewSession
-from jra_tools.machine_learning.usecase.table_dataset import TableDataset
 
 # 読む表のキーの列(race_dateは絞り込み・並べ替えにだけ使い、表には出さない)
 _KEYS = ("racehorsekey", "racekey", "umaban")

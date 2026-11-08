@@ -15,10 +15,10 @@ from sqlalchemy import Engine, create_engine, text
 from jra_tools.machine_learning import features
 from jra_tools.machine_learning.entity.feature_spec import (
     FeatureSpec,
-    default_feature_spec,
     parse_feature_spec,
 )
-from tests.machine_learning.infrastructure.conftest import sample_rows
+from jra_tools.machine_learning.infrastructure.spec_files import default_feature_spec
+from tests.machine_learning.conftest import sample_rows
 
 pytestmark = pytest.mark.skipif(
     "TEST_POSTGRES" not in os.environ, reason="TEST_POSTGRESがない"

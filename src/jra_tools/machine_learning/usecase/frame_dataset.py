@@ -24,6 +24,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from jra_tools.machine_learning.entity.dataset import InputDataset, TableDataset
 from jra_tools.machine_learning.entity.feature_spec import (
     Encode,
     Feature,
@@ -31,18 +32,10 @@ from jra_tools.machine_learning.entity.feature_spec import (
     FeatureSpec,
     Transform,
 )
-from jra_tools.machine_learning.usecase.table_dataset import LABEL_ORDERS, TableDataset
+from jra_tools.machine_learning.usecase.table_dataset import LABEL_ORDERS
 
 # StandardScalerと同じく、標準偏差がこれより小さい列は割らない(0にそろえるだけ)
 _ZERO_SCALE = 10 * np.finfo(float).eps
-
-
-@dataclass(frozen=True)
-class InputDataset:
-    """推論の入力. racekeysはxの1次元目の各レース."""
-
-    racekeys: np.ndarray
-    x: np.ndarray
 
 
 def frame_to_input(frame: pd.DataFrame, spec: FeatureSpec) -> InputDataset:

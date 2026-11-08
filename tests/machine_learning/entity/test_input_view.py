@@ -6,7 +6,6 @@ import pandas as pd
 import pytest
 
 from jra_tools.machine_learning.entity.feature_spec import (
-    default_feature_spec,
     parse_feature_spec,
 )
 from jra_tools.machine_learning.entity.input_view import (
@@ -17,6 +16,7 @@ from jra_tools.machine_learning.entity.input_view import (
     input_columns,
     source_view,
 )
+from jra_tools.machine_learning.infrastructure.spec_files import default_feature_spec
 
 SPEC = parse_feature_spec(
     {

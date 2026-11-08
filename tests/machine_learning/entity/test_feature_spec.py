@@ -9,13 +9,16 @@ from jra_tools.machine_learning.entity.feature_spec import (
     Encode,
     Feature,
     Transform,
+    check_jrdb_spec,
+    parse_feature_spec,
+)
+from jra_tools.machine_learning.infrastructure.saved_model_folder import (
+    SavedModelFolder,
+)
+from jra_tools.machine_learning.infrastructure.spec_files import (
     default_feature_spec,
     load_feature_spec,
-    parse_feature_spec,
     save_feature_spec,
-)
-from jra_tools.machine_learning.infrastructure.model_feature_spec import (
-    saved_model_input_shape,
 )
 
 MODEL_DIR = Path(__file__).parents[2] / "database" / "ResNet_4blocks_20130101_20191231"
@@ -26,7 +29,7 @@ def test_default_spec_matches_model():
     spec = default_feature_spec()
 
     assert spec.size == 23
-    spec.check_input_shape(saved_model_input_shape(MODEL_DIR))
+    spec.check_input_shape(SavedModelFolder(MODEL_DIR).input_shape())
 
 
 def test_default_spec_groups():
@@ -214,3 +217,20 @@ def test_invalid_training_period(period, message):
     """学習期間は両方書き、初日は最終日より後にしない."""
     with pytest.raises(ValueError, match=message):
         parse_feature_spec(_data(source="features.entries_v1", **period))
+
+
+def test_check_jrdb_spec():
+    """jrdb-modelの表から読む仕様は通し、sourceのある仕様は止める."""
+    check_jrdb_spec(default_feature_spec())
+    spec = parse_feature_spec(
+        {
+            "name": "from_features",
+            "max_horses": 18,
+            "source": "features.entries_v1",
+            "groups": [
+                {"name": "s", "transform": "none", "features": [{"name": "idm"}]}
+            ],
+        }
+    )
+    with pytest.raises(ValueError, match="featuresを使ってください"):
+        check_jrdb_spec(spec)

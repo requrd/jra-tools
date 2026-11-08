@@ -1,13 +1,14 @@
 """特徴量の仕様(推論モデルの入力の形)を定義する.
 
-仕様はYAMLで書き、学習に使った仕様をモデルと一緒に保存する。
+仕様はYAMLで書き、学習に使った仕様をモデルと一緒に保存する(ファイルの読み書きは
+infrastructure/spec_files.py・saved_model_folder.py)。
 入力の次元は、groupsの並び順・featuresの並び順のとおりに並ぶ。
 
 値の読み方は2つある。
-- 最上位にsourceがない仕様: 各特徴量のsourceはjrdb-modelの「テーブル名.列名」。ORMの経路で読む
-- 最上位にsource(featuresのビュー「スキーマ.ビュー名」)がある仕様: 各特徴量のsourceは
-  そのビューの列名(省略するとname)。view_digestは学習時のビューの定義のハッシュで、
-  読み込むときにDBのビューと照合する(view_dataset)
+- 最上位にsourceがない仕様: 各特徴量のsourceはjrdb-modelの「テーブル名.列名」(staging)
+- 最上位にsource(「スキーマ.名前」。featuresや試作のsandbox)がある仕様: 各特徴量のsourceは
+  その列名(省略するとname)。view_digestは学習時のsourceの定義のハッシュで、
+  読み込むときにDBと照合する(features)
 
 train_from・train_to(学習期間。初日・最終日を含む)は、学習したモデルの仕様に書く(省略可)。
 推論する日が学習期間に入っていないかを、使う側(batch)が確かめるため。
@@ -16,16 +17,7 @@ train_from・train_to(学習期間。初日・最終日を含む)は、学習し
 from dataclasses import dataclass
 from datetime import date
 from enum import StrEnum
-from importlib import resources
-from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
-
-import yaml
-
-# パッケージに同梱している仕様のファイルを置くパッケージ
-SPECS_PACKAGE = "jra_tools.machine_learning.specs"
-# 現行の推論モデル(ResNet_4blocks_20130101_20191231)の仕様
-DEFAULT_SPEC = "resnet4_2013_2019.yaml"
 
 
 class Transform(StrEnum):
@@ -47,7 +39,8 @@ class Encode(StrEnum):
 class Feature:
     """1つの特徴量.
 
-    sourceは、ORMの経路では「テーブル名.列名」(例: racehorse.idm)、ビューの経路では列名。
+    sourceは、jrdb-modelの表から読む仕様(staging)では「テーブル名.列名」(例: racehorse.idm)、
+    特徴量の層から読む仕様(features)では列名。
     onehotの場合、値がbaseのときに先頭の次元が1になる。
     """
 
@@ -93,8 +86,8 @@ class FeatureGroup:
 class FeatureSpec:
     """推論モデルの入力の仕様. 入力の形は(レース数, max_horses, size).
 
-    sourceはfeaturesのビュー(「スキーマ.ビュー名」)。Noneならjrdb-modelから読む(ORMの経路)。
-    view_digestは学習時のビューの定義のハッシュ(view_dataset.view_digest)。
+    sourceは読む先(「スキーマ.名前」)。Noneならjrdb-modelの表から読む(staging)。
+    view_digestは学習時のsourceの定義のハッシュ(features.digest)。
     """
 
     name: str
@@ -238,21 +231,15 @@ def feature_spec_to_dict(spec: FeatureSpec) -> Dict[str, Any]:
     }
 
 
-def load_feature_spec(path: Path | str) -> FeatureSpec:
-    """YAMLファイルから仕様を読み込む."""
-    with open(path, encoding="utf-8") as f:
-        return parse_feature_spec(yaml.safe_load(f))
+def check_jrdb_spec(spec: FeatureSpec) -> None:
+    """jrdb-modelの表から読む仕様か(最上位にsourceがない)を確かめる.
 
+    Raises:
+        ValueError: 特徴量の層から読む仕様(sourceがある)の場合
 
-def save_feature_spec(spec: FeatureSpec, path: Path | str) -> None:
-    """仕様をYAMLファイルに書き出す."""
-    with open(path, "w", encoding="utf-8") as f:
-        yaml.safe_dump(
-            feature_spec_to_dict(spec), f, allow_unicode=True, sort_keys=False
+    """
+    if spec.source is not None:
+        raise ValueError(
+            f"仕様{spec.name}は{spec.source}から読む仕様です"
+            "(jra_tools.machine_learning.featuresを使ってください)"
         )
-
-
-def default_feature_spec() -> FeatureSpec:
-    """現行の推論モデルの仕様を、パッケージに同梱したファイルから読み込む."""
-    text = resources.files(SPECS_PACKAGE).joinpath(DEFAULT_SPEC).read_text("utf-8")
-    return parse_feature_spec(yaml.safe_load(text))

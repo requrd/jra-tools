@@ -1,5 +1,5 @@
 # jra-tools
-Sazanami-AIのデータ・学習のための道具。JRDBの取り込みの補助・開催日程(Yahoo競馬)の照合・本番MariaDBの推論(jrdb-model)と、分析用のPostgresのビューの反映(`jra_tools.views`)・特徴量の層から学習・推論の入力を作ること(`jra_tools.machine_learning.features`)を持つ。
+Sazanami-AIのデータ・学習のための道具。JRDBの取り込みの補助・開催日程(Yahoo競馬)の照合(`jra_tools`)、分析用のPostgresのビューの反映(`jra_tools.views`)、学習・推論の入力を作ること(`jra_tools.machine_learning`の入口`features`・`staging`)を持つ。
 
 ## Usage
 ### Install
@@ -55,7 +55,7 @@ failures = run_view_tests(engine, view_set)  # 反映済みのビューにテス
 - 同時に流しても、advisory lockで1つずつ動く
 - テストはハッシュに含めない(テストだけを変えても作り直さない)
 ## 特徴量の層から読む(`jra_tools.machine_learning.features`)
-特徴量の仕様の最上位に`source`(「スキーマ.名前」。`features.entries_v1`や、試作の`sandbox.entries_try1`など)を書くと、学習・推論の入力をそこから作る。sourceがビューか表かは使う側には関係ない。`source`のない仕様(今の本番モデルの`feature_spec.yaml`)は、今までどおりjrdb-modelから読む(sourceのある仕様をjrdb-modelの経路に渡すとエラー)。
+特徴量の仕様の最上位に`source`(「スキーマ.名前」。`features.entries_v1`や、試作の`sandbox.entries_try1`など)を書くと、学習・推論の入力をそこから作る。sourceがビューか表かは使う側には関係ない。`source`のない仕様(今の本番モデルの`feature_spec.yaml`)は、jrdb-modelの表から読む(下の`staging`。sourceのある仕様を`staging`に渡すとエラー)。
 
 ```yaml
 name: resnet4_view
@@ -104,22 +104,30 @@ features.digest("features.entries_v1")                    # 今の定義のハ�
 - `predict_finish_probabilities`は確率だけを素の値で返す(連対率・オッズは使う側のビューで出す)。`model.predict(x)`は`activation_4`・`activation_5`・`activation_6`(1・2・3着)の`(レース, 18)`を返すこと(`PredictFactory`と同じ出力)。出走のない日は空
 - 値のない出走(NULL)があれば止める(jrdb-modelの経路の「行がなければエラー」と同じ)。文字列は0にする
 
-### 置き場所(`machine_learning`の層)
+## jrdb-modelの表から読む(`jra_tools.machine_learning.staging`)
+最上位に`source`のない仕様(各特徴量が「テーブル名.列名」)で、jrdb-modelの表(分析用のPostgresのstaging、MariaDB)から学習用のデータセットを作る。仕様の特徴量・着順・単勝の払戻の列だけをSQLで読む。接続先は環境変数`DB`。
+
+```python
+from jra_tools.machine_learning import staging
+
+dataset = staging.load_training_dataset(2013, 2019)    # 仕様の省略時は現行の推論モデルの仕様
+dataset = staging.load_quarter_dataset(2025, 1)
+dataset = staging.load_dataset(spec, 20130101, 20191231)
+staging.save_dataset(dataset, "2013_2019")             # x_….dump・….dump・payout_….dump・racekeys_….npy
+```
+
+- 0.6.0まであったORMのオブジェクトから作る経路(`InputCreator`・`LabelCreator`・`PayoutCreator`・`PredictFactory`など)は0.7.1でなくした。結果は同じで(`tests/machine_learning/data/`の値で確かめる)、2019年の1年分でORMの経路は17.0秒・1,865MB、この経路は4.0秒・263MBだった(2026-10-27、分析用のMySQL)
+- 成績・払戻・仕様の表(調教分析・追切・計算スコア)の行がない出走があれば、表と最初のキーを出して止める
+- 書き出すファイルは0.6.0までと同じ形式
+
+## 置き場所(`machine_learning`の層)
+使う側は入口(`features`・`staging`)と、仕様の型(入口から取れる`FeatureSpec`など)だけを使う。
+
 | 置き場所 | 中身 |
 |---|---|
-| `features.py`(層の外) | 入口。環境変数`DB`からPostgresの読み手を作り、手続きに渡す(組み立てだけ) |
-| `entity/input_view.py`・`entity/period.py` | 決まり(列の契約・ハッシュの照合・値なし)、期間を1年ずつに分ける |
-| `usecase/view_dataset.py` | 手続き。読む先は`usecase/iview_reader.py`の`IViewReader`、モデルは`usecase/ifinish_model.py`の`IFinishModel`(どちらもProtocol) |
-| `infrastructure/postgres_view_reader.py` | Postgresへの問い合わせ(SQLだけ) |
+| `features.py`・`staging.py`(層の外) | 入口。環境変数`DB`から読み手を作り、手続きに渡す(組み立てだけ) |
+| `entity/` | 仕様(`feature_spec.py`。ファイルは扱わない)、データセットの形(`dataset.py`)、特徴量の層の入力の列の契約と決まり(`input_view.py`)、jrdb-modelの表の行の決まり(`staging_rows.py`)、期間(`period.py`) |
+| `usecase/` | 手続き:特徴量の層から読む(`view_dataset.py`)、jrdb-modelの表から読む(`staging_dataset.py`)、テンソルへの組み立て(`frame_dataset.py`・`table_dataset.py`)、モデルの仕様の読み書き(`model_spec.py`)。外に触るところはProtocol(`iview_reader.py`・`istaging_rows_reader.py`・`imodel_folder.py`・`ifinish_model.py`) |
+| `infrastructure/` | Postgresへの問い合わせ(`postgres_view_reader.py`)、jrdb-modelの表を読むSQL(`staging_rows_reader.py`)、SavedModelのフォルダ(`saved_model_folder.py`)、仕様のYAML・同梱の既定の仕様(`spec_files.py`)、データセットのファイル(`dataset_files.py`) |
 
-## 層から外れているもの(ORMの経路)
-`machine_learning`はクリーンアーキテクチャの層(entity・usecase・interface_adapter・infrastructure)で分けているが、ORM(jrdb-model)の経路には外れが残っている。本番MariaDBの推論(`PredictFactory`→`InputCreator`→`feature_matrix`)が通るため、MariaDBのバッチを廃止するときにまとめて直す(それまで動かさない)。`InputCreator`・`LabelCreator`の`from jra_tools import ...`は使う側(Jupyter)があるので残す。
-
-| ファイル | 外れ | あるべき先 |
-|---|---|---|
-| `usecase/feature_matrix.py`・`training_tool.py`・`category_data.py`・`converter.py`・`iquery.py`・`icreator.py` | usecaseがjrdb-model(ORMのオブジェクト)に依存している | ORMのオブジェクトを行列にするのは変換なのでinterface_adapter |
-| `infrastructure/sql_dataset.py` | usecaseの非公開の`_check_orm_spec`をimportしている | 上と合わせて公開の決まりにする |
-| `usecase/table_dataset.py`の`TableDataset.save` | usecaseがファイルを書いている | 保存はinterface_adapter(ファイルの形式)+infrastructure |
-| `interface_adapter/iioloader.py` | どこからも使われていない | 削除 |
-| `machine_learning/util.py` | 組み立て(`create_app`・`MysqlLoader`をつなぐ)で、層の外にある | 入口と分かる名前・場所に |
-| `interface_adapter/payout_creator.py` | 冒頭の説明が「DB周りのユーティリティ」 | 中身(払戻の行列)に合わせる |
+開催データを紐づく表ごと読む`get_kaisais`は、機械学習ではなくDBの読み込みなので`jra_tools`(`database/kaisai_loader.py`)にある。

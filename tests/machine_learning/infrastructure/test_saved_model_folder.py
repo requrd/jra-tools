@@ -1,4 +1,4 @@
-"""モデルのフォルダの特徴量の仕様のユニットテスト."""
+"""モデルのフォルダ(SavedModel)の仕様の読み書きのテスト. 入口(features)とSavedModelFolderを通す."""
 
 import shutil
 from dataclasses import replace
@@ -6,16 +6,18 @@ from pathlib import Path
 
 import pytest
 
-from jra_tools.machine_learning.entity.feature_spec import (
+from jra_tools.machine_learning.features import (
+    load_model_feature_spec,
+    save_model_feature_spec,
+)
+from jra_tools.machine_learning.infrastructure.saved_model_folder import (
+    MODEL_SPEC_FILE,
+    SavedModelFolder,
+)
+from jra_tools.machine_learning.infrastructure.spec_files import (
     default_feature_spec,
     load_feature_spec,
     save_feature_spec,
-)
-from jra_tools.machine_learning.infrastructure.model_feature_spec import (
-    MODEL_SPEC_FILE,
-    load_model_feature_spec,
-    save_model_feature_spec,
-    saved_model_input_shape,
 )
 
 MODEL_DIR = Path(__file__).parents[2] / "database" / "ResNet_4blocks_20130101_20191231"
@@ -44,7 +46,7 @@ def _without_last_feature():
 
 def test_saved_model_input_shape():
     """saved_model.pbから入力の形を取得できることを確認する."""
-    assert saved_model_input_shape(MODEL_DIR) == [-1, 18, 23]
+    assert SavedModelFolder(MODEL_DIR).input_shape() == [-1, 18, 23]
 
 
 def test_model_dir_has_spec():
