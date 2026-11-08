@@ -8,7 +8,10 @@ import pytest
 from jrdb_model import KaisaiData, create_app, db
 from sqlalchemy import create_engine, text
 
-from jra_tools.machine_learning.entity.feature_spec import default_feature_spec
+from jra_tools.machine_learning.entity.feature_spec import (
+    default_feature_spec,
+    parse_feature_spec,
+)
 from jra_tools.machine_learning.infrastructure.mysql_loader import get_kaisais
 from jra_tools.machine_learning.infrastructure.sql_dataset import load_dataset
 from jra_tools.machine_learning.interface_adapter.input_creator import InputCreator
@@ -130,3 +133,27 @@ def test_missing_row(
 
     with pytest.raises(ValueError, match=f"{message}: {value}"):
         _load(sample_kaisais)
+
+
+def test_source_spec_rejected(sample_db: str, sample_kaisais: List[KaisaiData]):
+    """特徴量の層から読む仕様(sourceがある)は、jrdb-modelの経路では読まずに止める."""
+    spec = parse_feature_spec(
+        {
+            "name": "from_features",
+            "max_horses": 18,
+            "source": "features.entries_v1",
+            "groups": [
+                {
+                    "name": "scores",
+                    "transform": "standardize_per_race",
+                    "features": [{"name": "idm"}],
+                }
+            ],
+        }
+    )
+    start, end = _period(sample_kaisais)
+    with (
+        create_engine(sample_db).connect() as conn,
+        pytest.raises(ValueError, match="featuresを使ってください"),
+    ):
+        load_dataset(conn, spec, start, end)

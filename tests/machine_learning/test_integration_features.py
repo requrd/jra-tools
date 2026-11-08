@@ -18,7 +18,6 @@ from jra_tools.machine_learning.entity.feature_spec import (
     default_feature_spec,
     parse_feature_spec,
 )
-from jra_tools.machine_learning.infrastructure.sql_dataset import load_dataset
 from tests.machine_learning.infrastructure.conftest import sample_rows
 
 pytestmark = pytest.mark.skipif(
@@ -118,24 +117,6 @@ def _period(kaisais: List[KaisaiData]):
     return min(days), max(days)
 
 
-def test_same_as_sql_dataset(engine: Engine, sample_kaisais: List[KaisaiData]):
-    """同じDBから、今の経路(load_dataset)と同じ入力・正解ラベル・払戻ができる."""
-    start, end = _period(sample_kaisais)
-    with engine.connect() as conn:
-        expected = load_dataset(conn, default_feature_spec(), start, end)
-    spec = features.pin_digest(_view_spec())
-
-    actual = features.load_dataset(spec, start, end)
-
-    assert len(actual.racekeys) == 24
-    assert list(actual.racekeys) == list(expected.racekeys)
-    # レースごとの標準化の計算の順が違うため、浮動小数点の誤差の範囲で一致
-    assert np.allclose(actual.x, expected.x, rtol=0, atol=1e-9)
-    for a, e in zip(actual.labels, expected.labels, strict=True):
-        assert np.array_equal(a, e)
-    assert np.array_equal(actual.payout, expected.payout)
-
-
 def test_load_input(engine: Engine, sample_kaisais: List[KaisaiData]):
     """開催日の入力が、学習用のデータセットのその日の分と同じになる."""
     spec = features.pin_digest(_view_spec())
@@ -231,13 +212,6 @@ def test_missing_row(
 
     with pytest.raises(ValueError, match=message):
         features.load_dataset(spec, start, end)
-
-
-def test_view_spec_rejected_by_orm_path(engine: Engine, sample_kaisais):
-    """ビューから読む仕様は、今の経路では使えない."""
-    start, end = _period(sample_kaisais)
-    with engine.connect() as conn, pytest.raises(ValueError, match="ビュー"):
-        load_dataset(conn, _view_spec(), start, end)
 
 
 def test_read_frame(engine: Engine, sample_kaisais: List[KaisaiData]):

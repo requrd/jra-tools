@@ -95,10 +95,11 @@ def create_group_matrix(
 
 
 def _check_orm_spec(spec: FeatureSpec) -> None:
-    """ビューから読む仕様(最上位にsourceがある)は、この経路では使えない."""
+    """特徴量の層から読む仕様(最上位にsourceがある)は、この経路では使えない."""
     if spec.source is not None:
         raise ValueError(
-            f"仕様{spec.name}はビュー{spec.source}から読む仕様です(view_datasetを使ってください)"
+            f"仕様{spec.name}は{spec.source}から読む仕様です"
+            "(jra_tools.machine_learning.featuresを使ってください)"
         )
 
 

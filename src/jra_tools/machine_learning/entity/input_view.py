@@ -33,7 +33,7 @@ def source_view(spec: FeatureSpec) -> str:
     """
     if spec.source is None:
         raise ValueError(
-            f"仕様{spec.name}にsource(ビュー)がありません。jrdb-modelから読む仕様です"
+            f"仕様{spec.name}にsource(読む先)がありません。jrdb-modelから読む仕様です"
         )
     return spec.source
 
