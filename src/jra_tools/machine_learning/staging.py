@@ -18,6 +18,7 @@ from sqlalchemy import Connection, create_engine
 from jra_tools.machine_learning.entity.dataset import TableDataset
 from jra_tools.machine_learning.entity.feature_spec import FeatureSpec
 from jra_tools.machine_learning.entity.jrdbdummies import CategoryGetter
+from jra_tools.machine_learning.entity.labelutil import Labelref
 from jra_tools.machine_learning.entity.period import quarter_period, training_period
 from jra_tools.machine_learning.infrastructure.dataset_files import save_table_dataset
 from jra_tools.machine_learning.infrastructure.spec_files import default_feature_spec
@@ -28,6 +29,7 @@ from jra_tools.machine_learning.usecase.staging_dataset import load_staging_data
 
 __all__ = [
     "CategoryGetter",
+    "Labelref",
     "default_feature_spec",
     "load_dataset",
     "load_quarter_dataset",

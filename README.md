@@ -116,7 +116,7 @@ dataset = staging.load_dataset(spec, 20130101, 20191231)
 staging.save_dataset(dataset, "2013_2019")             # x_….dump・….dump・payout_….dump・racekeys_….npy
 ```
 
-- 0.6.0まであったORMのオブジェクトから作る経路(`InputCreator`・`LabelCreator`・`PayoutCreator`・`PredictFactory`など)は0.7.1でなくした(`CategoryGetter`は残す)。結果は同じで(`tests/machine_learning/data/`の値で確かめる)、2019年の1年分でORMの経路は17.0秒・1,865MB、この経路は4.0秒・263MBだった(2026-10-27、分析用のMySQL)
+- 0.6.0まであったORMのオブジェクトから作る経路(`InputCreator`・`LabelCreator`・`PayoutCreator`・`PredictFactory`など)は0.7.1でなくした(`CategoryGetter`・`Labelref`は残す)。結果は同じで(`tests/machine_learning/data/`の値で確かめる)、2019年の1年分でORMの経路は17.0秒・1,865MB、この経路は4.0秒・263MBだった(2026-10-27、分析用のMySQL)
 - 成績・払戻・仕様の表(調教分析・追切・計算スコア)の行がない出走があれば、表と最初のキーを出して止める
 - 書き出すファイルは0.6.0までと同じ形式
 
@@ -126,7 +126,7 @@ staging.save_dataset(dataset, "2013_2019")             # x_….dump・….dump�
 | 置き場所 | 中身 |
 |---|---|
 | `features.py`・`staging.py`(層の外) | 入口。環境変数`DB`から読み手を作り、手続きに渡す(組み立てだけ) |
-| `entity/` | JRDBのコードをone-hotにする`CategoryGetter`(`jrdbdummies.py`。項目ごとの取りうる値の範囲・区切りを持つ。入口から`features.CategoryGetter`で使える)、仕様(`feature_spec.py`。ファイルは扱わない)、データセットの形(`dataset.py`)、特徴量の層の入力の列の契約と決まり(`input_view.py`)、jrdb-modelの表の行の決まり(`staging_rows.py`)、期間(`period.py`) |
+| `entity/` | JRDBのコードをone-hotにする`CategoryGetter`(`jrdbdummies.py`。項目ごとの取りうる値の範囲・区切りを持つ。入口から`features.CategoryGetter`で使える)、馬券の馬番の組み合わせとカテゴリ番号の変換`Labelref`(`labelutil.py`)、仕様(`feature_spec.py`。ファイルは扱わない)、データセットの形(`dataset.py`)、特徴量の層の入力の列の契約と決まり(`input_view.py`)、jrdb-modelの表の行の決まり(`staging_rows.py`)、期間(`period.py`) |
 | `usecase/` | 手続き:特徴量の層から読む(`view_dataset.py`)、jrdb-modelの表から読む(`staging_dataset.py`)、テンソルへの組み立て(`frame_dataset.py`・`table_dataset.py`)、モデルの仕様の読み書き(`model_spec.py`)。外に触るところはProtocol(`iview_reader.py`・`istaging_rows_reader.py`・`imodel_folder.py`・`ifinish_model.py`) |
 | `infrastructure/` | Postgresへの問い合わせ(`postgres_view_reader.py`)、jrdb-modelの表を読むSQL(`staging_rows_reader.py`)、SavedModelのフォルダ(`saved_model_folder.py`)、仕様のYAML・同梱の既定の仕様(`spec_files.py`)、データセットのファイル(`dataset_files.py`) |
 

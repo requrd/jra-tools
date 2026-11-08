@@ -24,6 +24,7 @@ from jra_tools.machine_learning.entity.feature_spec import (
 )
 from jra_tools.machine_learning.entity.input_view import DEFAULT_LABELS
 from jra_tools.machine_learning.entity.jrdbdummies import CategoryGetter
+from jra_tools.machine_learning.entity.labelutil import Labelref
 from jra_tools.machine_learning.infrastructure.postgres_view_reader import (
     PostgresViewReader,
 )
@@ -41,6 +42,7 @@ __all__ = [
     "DEFAULT_LABELS",
     "CategoryGetter",
     "FeatureSpec",
+    "Labelref",
     "digest",
     "load_dataset",
     "load_feature_spec",
