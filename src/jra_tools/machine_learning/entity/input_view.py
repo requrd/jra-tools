@@ -12,30 +12,16 @@ from typing import Iterable, List, Sequence
 
 import pandas as pd
 
-from jra_tools.machine_learning.entity.feature_spec import FeatureSpec
+from jra_tools.machine_learning.entity.feature_spec import Encode, FeatureSpec
 
 # 入力のビューに必要な列
 ENTRY_COLUMNS = ("racehorsekey", "racekey", "race_date", "umaban")
 # ラベルのビューに必要な列
-LABEL_COLUMNS = ("racehorsekey", "finish_order", "win1_num", "win1_ret")
+LABEL_COLUMNS = ("racehorsekey", "finish_order")
 # 既定のラベルのビュー
 DEFAULT_LABELS = "features.labels_v1"
 # 読んだ表で、ラベルのビューに行があるかを表す列(ラベルのビューのracehorsekey)
 LABEL_PRESENT = "_label"
-
-
-def source_view(spec: FeatureSpec) -> str:
-    """仕様が読む入力のビュー(「スキーマ.ビュー名」).
-
-    Raises:
-        ValueError: 仕様にsourceがない(jrdb-modelから読む仕様)場合
-
-    """
-    if spec.source is None:
-        raise ValueError(
-            f"仕様{spec.name}にsource(読む先)がありません。jrdb-modelから読む仕様です"
-        )
-    return spec.source
 
 
 def input_columns(spec: FeatureSpec) -> List[str]:
@@ -52,18 +38,11 @@ def input_columns(spec: FeatureSpec) -> List[str]:
     return columns
 
 
-def require_view_digest(spec: FeatureSpec) -> str:
-    """仕様に書いた、学習時のビューのハッシュ.
-
-    Raises:
-        ValueError: 仕様にview_digestがない場合
-
-    """
-    if spec.view_digest is None:
-        raise ValueError(
-            f"仕様{spec.name}にview_digestがありません(pin_view_digestで書いてください)"
-        )
-    return spec.view_digest
+def category_columns(spec: FeatureSpec) -> List[str]:
+    """カテゴリの列(NULLを許す列)."""
+    return list(
+        dict.fromkeys(f.source for f in spec.features if f.encode == Encode.CATEGORY)
+    )
 
 
 def check_columns(view: str, existing: Iterable[str], required: Sequence[str]) -> None:
@@ -83,30 +62,27 @@ def check_digest(spec: FeatureSpec, view: str, digest: str) -> None:
     """今のビューのハッシュが、学習時(仕様のview_digest)と同じかを確かめる.
 
     Raises:
-        ValueError: view_digestがない、または定義が学習時と違う場合
+        ValueError: 定義が学習時と違う場合
 
     """
-    pinned = require_view_digest(spec)
+    pinned = spec.view_digest or ""
     if digest != pinned:
         raise ValueError(
             f"ビュー{view}の定義が、仕様{spec.name}の学習時と違います"
             f"(今{digest[:12]}、学習時{pinned[:12]})。"
-            "仕様を書き直すか、ビューの版を上げてください"
+            "仕様を固定し直すか、ビューの版を上げてください"
         )
 
 
-def check_values(
-    frame: pd.DataFrame, view: str, features: Sequence[str], labels: bool
-) -> pd.DataFrame:
+def check_values(frame: pd.DataFrame, spec: FeatureSpec, labels: bool) -> pd.DataFrame:
     """読んだ表に値なしがないかを確かめ、学習・推論に渡す表を返す.
 
-    入力の列に値なしがあれば止める(jrdb-modelの表の経路の「行がなければエラー」と同じ)。
-    ラベルを読んだときは、成績(ラベルのビューの行)・単勝の払戻がない出走も止める。
+    数値の列に値なしがあれば止める。カテゴリの列の値なし(記載外のコード)は例外の列にするので許す。
+    ラベルを読んだときは、成績(ラベルのビューの行)がない出走も止める。
 
     Args:
         frame (pd.DataFrame): 読んだ表(ラベルを読んだときはLABEL_PRESENTの列を含む)
-        view (str): 入力のビュー(メッセージに出す)
-        features (Sequence[str]): 入力の列
+        spec (FeatureSpec): 仕様
         labels (bool): ラベルを読んだか
 
     Returns:
@@ -116,13 +92,15 @@ def check_values(
         ValueError: 値なしがある場合。最初の出走馬のキーを出す
 
     """
-    for column in features:
-        _check_not_null(frame, column, f"{view}.{column}が値なしの出走があります")
+    nullable = set(category_columns(spec))
+    for column in input_columns(spec):
+        if column not in nullable:
+            _check_not_null(
+                frame, column, f"{spec.source}.{column}が値なしの出走があります"
+            )
     if not labels:
         return frame
     _check_not_null(frame, LABEL_PRESENT, "成績がありません")
-    _check_not_null(frame, "win1_num", "払戻データがありません")
-    _check_not_null(frame, "win1_ret", "払戻データがありません")
     return frame.drop(columns=LABEL_PRESENT)
 
 

@@ -1,5 +1,5 @@
 # jra-tools
-Sazanami-AIのデータ・学習のための道具。JRDBの取り込みの補助・開催日程(Yahoo競馬)の照合(`jra_tools`)、分析用のPostgresのビューの反映(`jra_tools.views`)、学習・推論の入力を作ること(`jra_tools.machine_learning`の入口`features`・`staging`)を持つ。
+Sazanami-AIのデータ・学習のための道具。JRDBの取り込みの補助・開催日程(Yahoo競馬)の照合(`jra_tools`)、分析用のPostgresのビューの反映(`jra_tools.views`)、学習・推論・評価の入力を作ること(`jra_tools.machine_learning`の入口`features`)を持つ。
 
 ## Usage
 ### Install
@@ -14,7 +14,7 @@ $pip install "jra-tools[postgres]"
 ```
 $uv run pytest
 ```
-Postgresを使う結合テスト(`tests/views`・`tests/machine_learning/test_integration_features.py`・`tests/machine_learning/infrastructure/test_integration_postgres_view_reader.py`)は、環境変数`TEST_POSTGRES`(例: `postgresql+psycopg://test_user:test_password@127.0.0.1:5432/test_database`)がなければ飛ばす。
+Postgresを使う結合テスト(`tests/views`・`tests/machine_learning/test_integration_features.py`・`tests/machine_learning/interface_adapter/test_integration_view_gateway.py`)は、環境変数`TEST_POSTGRES`(例: `postgresql+psycopg://test_user:test_password@127.0.0.1:5432/test_database`)がなければ飛ばす。
 
 ## ビューの仕組み(`jra_tools.views`)
 分析用のPostgresのmodel・featuresのビューを、定義から作る。具体的な定義は持たず、使う側(sazanami-batchの`schemas/`)から渡す。ビューはデータを持たないので、マイグレーションはしない。
@@ -55,21 +55,38 @@ failures = run_view_tests(engine, view_set)  # 反映済みのビューにテス
 - 同時に流しても、advisory lockで1つずつ動く
 - テストはハッシュに含めない(テストだけを変えても作り直さない)
 ## 特徴量の層から読む(`jra_tools.machine_learning.features`)
-特徴量の仕様の最上位に`source`(「スキーマ.名前」。`features.entries_v1`や、試作の`sandbox.entries_try1`など)を書くと、学習・推論の入力をそこから作る。sourceがビューか表かは使う側には関係ない。`source`のない仕様(今の本番モデルの`feature_spec.yaml`)は、jrdb-modelの表から読む(下の`staging`。sourceのある仕様を`staging`に渡すとエラー)。
+特徴量の仕様の`source`(「スキーマ.名前」。`features.entries_v1`や、試作の`sandbox.entries_try1`など)から、学習・推論・評価の入力を作る。sourceがビューか表かは使う側には関係ない。jra-toolsはstagingを直接読まない。
 
 ```yaml
 name: resnet4_view
 max_horses: 18
 source: features.entries_v1   # 入力を読む先
-view_digest: 1c445b...         # 学習時のsourceの定義のハッシュ(pin_digestが書く)
-train_from: 2013-01-01         # 学習期間(初日・最終日を含む。省略可)
-train_to: 2019-12-31
 groups:
   - name: scores
     transform: standardize_per_race
     features:
       - {name: idm}                     # sourceを省略すると列名=name
       - {name: waku_win_rate, source: waku_win_rate}
+  - name: categories
+    transform: none
+    features:
+      - {name: waku, encode: category}  # 列の値はコード。番号はcode_categoriesから(pin_specが写す)
+```
+
+固定した仕様(`pin_spec`・`save_model_feature_spec`が書き足す):
+
+```yaml
+view_digest: 1c445b...                          # 学習時のsourceの定義のハッシュ
+output_names: [activation_2, ..., activation_6] # モデルの出力の名前(1着→5着)
+train_from: 2013-01-01                          # 学習期間(初日・最終日を含む。省略可)
+train_to: 2019-12-31
+groups:
+  - name: categories
+    transform: none
+    features:
+      - name: waku
+        encode: category
+        categories: {'1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8}  # 学習時の控え
 ```
 
 使う側は`features`だけを使う。接続先は環境変数`DB`(分析用のPostgres)から読む。
@@ -81,53 +98,57 @@ from datetime import date
 from jra_tools.machine_learning import features
 
 spec = features.load_feature_spec("spec.yaml")
-spec = features.pin_digest(spec)                          # 学習の前に、今のsourceのハッシュを書く
-dataset = features.load_dataset(spec, 20130101, 20191231)  # labels="features.labels_v1"
-spec = dataclasses.replace(spec, train_from=date(2013, 1, 1), train_to=date(2019, 12, 31))
-features.save_model_feature_spec(spec, model_dir)        # モデルと一緒に保存する(学習期間も書く)
+spec = features.pin_spec(spec)          # 学習の前に、ハッシュとカテゴリの控えを写す
+dataset = features.load_dataset(spec, 20130101, 20241231, cache_dir="cache")  # 入力と1〜5着のラベル
+spec = dataclasses.replace(spec, train_from=date(2013, 1, 1), train_to=date(2024, 12, 31))
+features.save_model_feature_spec(spec, model_dir, model.output_names)  # モデルと一緒に保存する
 
-spec = features.load_model_feature_spec(model_dir)       # 推論
-inputs = features.load_input(spec, 20261101)             # その日の入力だけ
-probs = features.predict_finish_probabilities(spec, 20261101, model)  # [(racehorsekey, 1着, 2着, 3着の確率)]
-frame = features.read_frame(spec, 20250101, 20251231)    # 組み立てる前の1頭1行のDataFrame
-features.digest("features.entries_v1")                    # 今の定義のハッシュ
+predictions, metrics = features.evaluate(spec, 20250101, 20250331, model)  # 評価期間(締めた年だけ)
+spec = features.load_model_feature_spec(model_dir)                       # 推論
+probs = features.predict_finish_probabilities(spec, 20261101, model)    # [(racehorsekey, 1着, 2着, 3着の確率)]
+frame = features.read_frame(spec, 20250101, 20251231)  # 組み立てる前の1頭1行のDataFrame
+features.digest("features.entries_v1")                  # 今の定義のハッシュ
 ```
 
-- 読んだ表(1頭1行のpandasのDataFrame)を、仕様に従ってテンソルにする。各レースを1〜18の枠に並べ(空き枠は0)、グループごとにone-hot・レースごとの標準化をしてから、最後に`(レース, 18, 次元)`のndarrayにする
-- jrdb-modelの経路(`assemble_dataset`)とは、浮動小数点の誤差(1e-15程度)の範囲で一致する。正解ラベル・払戻・並び順は完全に一致する
+- 読んだ表(1頭1行のpandasのDataFrame)を、仕様に従ってテンソルにする。各レースを1〜18の枠に並べ(空き枠は0)、グループごとにカテゴリのone-hot・レースごとの標準化をしてから、最後に`(レース, 18, 次元)`のndarrayにする
+- 学習のデータセットは入力と1〜5着の正解ラベルだけで、払戻は持たない。回収率は、`evaluate`の確率(`racehorsekey`ごと)を`model.entries`・`model.payouts`と結合して出す(使う側のsandboxのビュー・pandas)
+- 入力の列: `racehorsekey`・`racekey`・`race_date`(date)・`umaban`と仕様の列。ラベルの列: `racehorsekey`・`finish_order`
+- 数値の列に値なし(NULL)があれば止める。文字列は0にする。成績(ラベルのビューの行)のない出走があれば止める
 - 学習期間(`train_from`・`train_to`)は、学習に使った期間をモデルの仕様に残すためのもの。使う側(batch)は、推論する日が学習期間に入っていないかをこれで確かめる
-- 入力の列: `racehorsekey`・`racekey`・`race_date`(date)・`umaban`と仕様の列。ラベルの列: `racehorsekey`・`finish_order`・`win1_num`・`win1_ret`
-- 読むたびに、仕様の列がsourceにあるか、sourceの定義のハッシュが`view_digest`と同じかを確かめ、違えば止める。定義を変えたら(バグ修正でも)、仕様を書き直すか、版を上げる(`entries_v2`を並べる)
+
+### カテゴリの列
+- 変換の決まりの正はDBの`code_categories`(1コード1行 `item, code, category_no, label`)。列の名前=項目の名前、列の値=コード(文字列)。JRDBの項目名(`waku`など)はmodelが使い、まとめ方・試作には別の名前(例: `waku_group`)を付ける
+- `pin_spec`は、`model.code_categories`・`features.code_categories`・`sandbox.code_categories`(DBにあるものだけ。引数`category_sources`で替えられる)を合わせて項目名で引き、「コード→番号」を仕様に写す。項目がどこにもない・2か所以上にあれば止める
+- 次元は最大の番号 + 例外の列1。控えにないコード(学習のあとに増えたコードなど)・NULL(modelで記載外にしたコード)は例外の列。推論はDBの`code_categories`を読まず、モデルのフォルダの控えだけを使う(seedsの更新でビューのハッシュは変わらず、番号がずれうるため)
+
+### ビューのハッシュ
+- 読むたびに、仕様の列がsourceにあるか、sourceの定義のハッシュが`view_digest`と同じかを確かめ、違えば止める。定義を変えたら(バグ修正でも)、仕様を固定し直すか、版を上げる(`entries_v2`を並べる)
 - ハッシュは、sourceと、依存するビュー・関数の定義(Postgresが保存した形)から作る。関係のないものを足したり変えたりしても変わらない。空白・コメントだけの違いでも変わらない。stagingの表は名前だけを含める。Postgresのメジャーバージョンを上げると変わることがある。名前も含むので、sandboxで学習したモデルは、本採用(`features.`へ移す)のあと学習し直す
 - 関数の中から呼ぶ関数をたどれるのは、`RETURN`で書いたSQLの関数だけ(`AS $$...$$`の本体はPostgresが依存を記録しない)
-- 1回の読み込みは1トランザクションで、先にsourceを共有ロックする(読み終わるまで`apply_views`に作り直されない)。学習は1年ずつ読む
-- `predict_finish_probabilities`は確率だけを素の値で返す(連対率・オッズは使う側のビューで出す)。`model.predict(x)`は`activation_4`・`activation_5`・`activation_6`(1・2・3着)の`(レース, 18)`を返すこと(`PredictFactory`と同じ出力)。出走のない日は空
-- 値のない出走(NULL)があれば止める(jrdb-modelの経路の「行がなければエラー」と同じ)。文字列は0にする
+- 1回の読み込みは1トランザクションで、先にsourceを共有ロックする(読み終わるまで`apply_views`に作り直されない)。1年ずつ読む
 
-## jrdb-modelの表から読む(`jra_tools.machine_learning.staging`)
-最上位に`source`のない仕様(各特徴量が「テーブル名.列名」)で、jrdb-modelの表(分析用のPostgresのstaging、MariaDB)から学習用のデータセットを作る。仕様の特徴量・着順・単勝の払戻の列だけをSQLで読む。接続先は環境変数`DB`。
+### 読み直しの節約(`cache_dir`)
+- `cache_dir`を渡すと、ビューから読んだ表を`<仕様の名前>_<開始日>_<終了日>.parquet`で残し、次からはビューを読まずにそれを使う。テンソルは毎回表から作る
+- メタデータに入力の作り方のハッシュ(source・view_digest・特徴量・カテゴリの控え)・期間・ラベルのビューを入れ、今の仕様と違えば止める(ファイルを消すか、置き場所を替える)
+- 行の並び(開催日・レースキー・馬番)を保つ(Kerasの`validation_split`は並びの末尾を検証に使う)
 
-```python
-from jra_tools.machine_learning import staging
-
-dataset = staging.load_training_dataset(2013, 2019)    # 仕様の省略時は現行の推論モデルの仕様
-dataset = staging.load_quarter_dataset(2025, 1)
-dataset = staging.load_dataset(spec, 20130101, 20191231)
-staging.save_dataset(dataset, "2013_2019")             # x_….dump・….dump・payout_….dump・racekeys_….npy
-```
-
-- 0.6.0まであったORMのオブジェクトから作る経路(`InputCreator`・`LabelCreator`・`PayoutCreator`・`PredictFactory`など)は0.7.1でなくした(`CategoryGetter`・`Labelref`は残す)。結果は同じで(`tests/machine_learning/data/`の値で確かめる)、2019年の1年分でORMの経路は17.0秒・1,865MB、この経路は4.0秒・263MBだった(2026-10-27、分析用のMySQL)
-- 成績・払戻・仕様の表(調教分析・追切・計算スコア)の行がない出走があれば、表と最初のキーを出して止める
-- 書き出すファイルは0.6.0までと同じ形式
+### 評価・推論
+- `evaluate`は評価期間を1回読み、Kerasの`evaluate`(出力ごとのloss・指標)と`predict`(出走馬ごとの1〜5着の確率)を表で返す。評価期間は締めた年(`model.races`の`year_complete`)に限る。DBに書くのは使う側
+  - 確率の列: `racehorsekey`・`first_prob`〜`fifth_prob`(sandboxの`trial_predictions`と同じ名前)。loss・指標の列: `output`(出力の名前、合計は`total`)・`metric`・`value`
+- 出力の名前は決め打ちせず、`save_model_feature_spec`でモデルの`output_names`(1着→5着の順)を仕様に写し、その順で読む。`model.predict`の結果は名前→値でも、出力の順のリストでもよい
+- `predict_finish_probabilities`は1〜3着の確率だけを素の値で返す(連対率・オッズは使う側のビューで出す)。出走のない日は空
 
 ## 置き場所(`machine_learning`の層)
-使う側は入口(`features`・`staging`)と、仕様の型(入口から取れる`FeatureSpec`など)だけを使う。
+使う側は入口(`features`)と、仕様の型(入口から取れる`FeatureSpec`など)だけを使う。engine・ファイルの扱いは見せない。
 
 | 置き場所 | 中身 |
 |---|---|
-| `features.py`・`staging.py`(層の外) | 入口。環境変数`DB`から読み手を作り、手続きに渡す(組み立てだけ) |
-| `entity/` | JRDBのコードをone-hotにする`CategoryGetter`(`jrdbdummies.py`。項目ごとの取りうる値の範囲・区切りを持つ。入口から`features.CategoryGetter`で使える)、馬券の馬番の組み合わせとカテゴリ番号の変換`Labelref`(`labelutil.py`)、仕様(`feature_spec.py`。ファイルは扱わない)、データセットの形(`dataset.py`)、特徴量の層の入力の列の契約と決まり(`input_view.py`)、jrdb-modelの表の行の決まり(`staging_rows.py`)、期間(`period.py`) |
-| `usecase/` | 手続き:特徴量の層から読む(`view_dataset.py`)、jrdb-modelの表から読む(`staging_dataset.py`)、テンソルへの組み立て(`frame_dataset.py`・`table_dataset.py`)、モデルの仕様の読み書き(`model_spec.py`)。外に触るところはProtocol(`iview_reader.py`・`istaging_rows_reader.py`・`imodel_folder.py`・`ifinish_model.py`) |
-| `infrastructure/` | Postgresへの問い合わせ(`postgres_view_reader.py`)、jrdb-modelの表を読むSQL(`staging_rows_reader.py`)、SavedModelのフォルダ(`saved_model_folder.py`)、仕様のYAML・同梱の既定の仕様(`spec_files.py`)、データセットのファイル(`dataset_files.py`) |
+| `features.py`(層の外) | 入口。infrastructureの接続・ファイルを作り、interface_adapterの読み手・置き場に渡し、手続きを呼ぶ(組み立てだけ) |
+| `entity/` | 仕様(`feature_spec.py`)、カテゴリの決まり(`category.py`。探す先の既定・項目を1つに決める・コード→位置)、データセットの形(`dataset.py`)、入力・ラベルの列の契約と決まり(`input_view.py`)、期間(`period.py`)、JRDBのコードをone-hotにする`CategoryGetter`(`jrdbdummies.py`。入口から`features.CategoryGetter`で使える)、馬券の馬番の組み合わせとカテゴリ番号の変換`Labelref`(`labelutil.py`) |
+| `usecase/` | 手続き:仕様の固定・読む・推論・評価(`view_dataset.py`)、テンソルへの組み立て(`frame_dataset.py`)、モデルの仕様の読み書き(`model_spec.py`)。外に触るところはProtocol(`iview_reader.py`・`iframe_store.py`・`imodel_folder.py`・`ifinish_model.py`) |
+| `interface_adapter/` | PostgresのSQL(`view_gateway.py`。照合・ハッシュ・読む・code_categories・締めた年)、表⇔Parquet(`frame_format.py`)と置き場(`frame_store.py`)、仕様⇔YAMLの辞書(`spec_format.py`) |
+| `infrastructure/` | 接続・トランザクション(`sql_session.py`)、ファイル(`files.py`)、SavedModelのフォルダ(`saved_model.py`) |
+
+0.6.0まであったORMのオブジェクトから作る経路(`InputCreator`・`LabelCreator`・`PayoutCreator`・`PredictFactory`など)、jrdb-modelの表から読む経路、onehot(`size`・`base`)、`.dump`の書き出しはなくした。2019年の1年分でORMの経路は17.0秒・1,865MB、SQLの経路は4.0秒・263MBだった(2026-10-27、分析用のMySQL)。
 
 開催データを紐づく表ごと読む`get_kaisais`は、機械学習ではなくDBの読み込みなので`jra_tools`(`database/kaisai_loader.py`)にある。

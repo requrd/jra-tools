@@ -9,6 +9,8 @@ from typing import List, Optional, Protocol, Sequence
 
 import pandas as pd
 
+from jra_tools.machine_learning.entity.category import CategoryRow
+
 
 class IViewSession(Protocol):
     """1回の読み込みのセッション(1トランザクション)."""
@@ -47,6 +49,14 @@ class IViewSession(Protocol):
             pd.DataFrame: 開催日・レースキー・馬番の順
 
         """
+
+    def code_categories(
+        self, sources: Sequence[str], items: Sequence[str]
+    ) -> List[CategoryRow]:
+        """探す先のうちDBにあるcode_categoriesから、itemsの行(探す先, item, code, category_no)を読む."""
+
+    def incomplete_years(self, start: int, end: int) -> List[int]:
+        """期間内(YYYYMMDD)のレースのうち、締めていない年(model.racesのyear_completeがfalse)."""
 
 
 class IViewReader(Protocol):

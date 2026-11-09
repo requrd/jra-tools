@@ -5,7 +5,7 @@ import os
 import pytest
 from sqlalchemy import Engine, create_engine, text
 
-from jra_tools.machine_learning.infrastructure.postgres_view_reader import view_digest
+from jra_tools.machine_learning.interface_adapter.view_gateway import view_digest
 from tests.machine_learning.test_integration_features import (
     engine,
 )

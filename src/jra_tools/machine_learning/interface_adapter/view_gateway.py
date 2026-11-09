@@ -1,16 +1,18 @@
 """分析用のPostgresのビューを読む(usecase/iview_reader.pyの実装). SQLだけを持つ.
 
 1つのセッションは1トランザクション。ロック(access share)はトランザクションの終わりまで続くので、
-読み終わるまでapply_viewsにビューを作り直されない。
+読み終わるまでapply_viewsにビューを作り直されない。接続・トランザクションはinfrastructureが作り、
+ここには始めたトランザクションの接続を渡す。
 """
 
 from collections.abc import Iterator
-from contextlib import contextmanager
-from typing import List, Optional, Sequence
+from contextlib import AbstractContextManager, contextmanager
+from typing import Callable, List, Optional, Sequence
 
 import pandas as pd
-from sqlalchemy import Connection, Engine, text
+from sqlalchemy import Connection, text
 
+from jra_tools.machine_learning.entity.category import CategoryRow
 from jra_tools.machine_learning.entity.input_view import LABEL_COLUMNS, LABEL_PRESENT
 from jra_tools.machine_learning.entity.period import to_date
 
@@ -146,6 +148,36 @@ class PostgresViewSession:
         )
         return pd.DataFrame(result.all(), columns=list(result.keys()))
 
+    def code_categories(
+        self, sources: Sequence[str], items: Sequence[str]
+    ) -> List[CategoryRow]:
+        """探す先のうちDBにあるcode_categoriesから、itemsの行を読む."""
+        rows: List[CategoryRow] = []
+        for source in sources:
+            if not self.exists(source):
+                continue
+            result = self._connection.execute(
+                text(
+                    "select item, code, category_no"  # noqa: S608
+                    f" from {self._qualified(source)} where item = any(:items)"
+                ),
+                {"items": list(items)},
+            )
+            rows += [(source, item, str(code), int(no)) for item, code, no in result]
+        return rows
+
+    def incomplete_years(self, start: int, end: int) -> List[int]:
+        """期間内のレースのうち、締めていない年(model.racesのyear_completeがfalse)."""
+        result = self._connection.execute(
+            text(
+                "select distinct extract(year from race_date)::int as year"
+                " from model.races where race_date between :start and :end"
+                " and not year_complete order by year"
+            ),
+            {"start": to_date(start), "end": to_date(end)},
+        )
+        return list(result.scalars())
+
     def _qualified(self, name: str) -> str:
         schema, _, view = name.partition(".")
         return f"{self._quote(schema)}.{self._quote(view)}"
@@ -154,12 +186,12 @@ class PostgresViewSession:
 class PostgresViewReader:
     """分析用のPostgresのビューの読み手(IViewReader)."""
 
-    def __init__(self, engine: Engine):
-        """Postgresのエンジンを受け取る."""
-        self._engine = engine
+    def __init__(self, transaction: Callable[[], AbstractContextManager[Connection]]):
+        """トランザクションを始めた接続を返す関数(infrastructure)を受け取る."""
+        self._transaction = transaction
 
     @contextmanager
     def session(self) -> Iterator[PostgresViewSession]:
         """1トランザクションのセッション. 抜けるときにコミットする(読むだけ)."""
-        with self._engine.begin() as connection:
+        with self._transaction() as connection:
             yield PostgresViewSession(connection)

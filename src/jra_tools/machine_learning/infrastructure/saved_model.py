@@ -1,4 +1,4 @@
-"""TensorFlowのSavedModelのフォルダ(usecase/model_spec.pyのIModelFolderの実装).
+"""TensorFlowのSavedModelのフォルダ(usecase/imodel_folder.pyのIModelFolderの実装).
 
 仕様はフォルダのfeature_spec.yaml。入力の形は、変数を読み込まずにsaved_model.pbから取る。
 """
@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import List
 
 from jra_tools.machine_learning.entity.feature_spec import FeatureSpec
-from jra_tools.machine_learning.infrastructure.spec_files import (
-    load_feature_spec,
-    save_feature_spec,
+from jra_tools.machine_learning.infrastructure.files import read_yaml, write_yaml
+from jra_tools.machine_learning.interface_adapter.spec_format import (
+    feature_spec_to_dict,
+    parse_feature_spec,
 )
 
 # モデルのフォルダ(SavedModel)に置く仕様のファイル名
@@ -55,10 +56,10 @@ class SavedModelFolder:
             raise FileNotFoundError(
                 f"モデルのフォルダに特徴量の仕様がありません: {path}"
             )
-        return load_feature_spec(path)
+        return parse_feature_spec(read_yaml(path))
 
     def write_spec(self, spec: FeatureSpec) -> Path:
         """仕様をフォルダに書く."""
         path = self.model_dir / MODEL_SPEC_FILE
-        save_feature_spec(spec, path)
+        write_yaml(feature_spec_to_dict(spec), path)
         return path
