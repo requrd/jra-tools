@@ -21,7 +21,6 @@ from jra_tools.machine_learning.entity.category import DEFAULT_CATEGORY_SOURCES
 from jra_tools.machine_learning.entity.dataset import InputDataset, TableDataset
 from jra_tools.machine_learning.entity.feature_spec import FeatureSpec
 from jra_tools.machine_learning.entity.input_view import DEFAULT_LABELS
-from jra_tools.machine_learning.entity.jrdbdummies import CategoryGetter
 from jra_tools.machine_learning.entity.labelutil import Labelref
 from jra_tools.machine_learning.infrastructure.files import (
     Directory,
@@ -54,7 +53,6 @@ __all__ = [
     "DEFAULT_CATEGORY_SOURCES",
     "DEFAULT_LABELS",
     "PROBABILITY_COLUMNS",
-    "CategoryGetter",
     "FeatureSpec",
     "InputDataset",
     "Labelref",
