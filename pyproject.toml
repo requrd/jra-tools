@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jra-tools"
-version = "0.6.0"
+version = "0.7.1"
 authors = [{ name = "Requrd", email = "requrd1989@gmail.com" }]
 description = "Data Analisys Tools for JRDB"
 classifiers = [
@@ -24,6 +24,7 @@ dependencies = [
     "tensorflow>=2.20.0",
     "pyyaml>=6.0",
     "pandas>=2.2",
+    "pyarrow>=18",
 ]
 
 [project.optional-dependencies]
@@ -40,9 +41,6 @@ Homepage = "https://github.com/requrd/jra-tools"
 
 [tool.setuptools]
 license-files = []
-
-[tool.setuptools.package-data]
-"jra_tools.machine_learning.specs" = ["*.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -75,7 +73,7 @@ dev = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["keras.*", "keras", "sklearn.*", "bs4"]
+module = ["keras.*", "keras", "sklearn.*", "bs4", "pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
 
 [tool.coverage.run]
