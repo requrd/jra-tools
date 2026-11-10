@@ -3,7 +3,7 @@ Sazanami-AIのデータ・学習のための道具。次の3つを持つ。
 
 | 使い道 | モジュール | 主に使うところ | 説明 |
 |---|---|---|---|
-| 学習・推論・評価の入力を作る | `jra_tools.machine_learning.features` | Jupyter・sazanami-batch | [docs/features.md](https://github.com/requrd/jra-tools/blob/master/docs/features.md) |
+| 学習・推論・評価の入力を作り、モデルを保存・読み込みする | `jra_tools.machine_learning.features` | Jupyter・sazanami-batch | [docs/features.md](https://github.com/requrd/jra-tools/blob/master/docs/features.md) |
 | 分析用のPostgresのビューを反映する | `jra_tools.views` | sazanami-batch | [docs/views.md](https://github.com/requrd/jra-tools/blob/master/docs/views.md) |
 | JRDBの取り込みの補助・開催日程の照合 | `jra_tools`(`database/`) | sazanami-batch | 下の「JRDB・開催日程」 |
 
@@ -15,24 +15,21 @@ pip install "jra-tools[postgres]"   # 分析用のPostgresから読むとき(ド
 pip install jra-tools               # JRDBの補助だけ
 ```
 
-## 学習の入力を作る(最短の例)
+## 学習の入力を作る(例)
 接続先は環境変数`DB`(分析用のPostgres。例: `postgresql+psycopg://user:pass@host:5432/sazanami`)。engineを作る必要はない。
 
 ```python
 from jra_tools.machine_learning import features
 
-spec = features.load_feature_spec("spec.yaml")   # どのビューのどの列を使うか
-spec = features.pin_spec(spec)                     # ビューのハッシュとカテゴリの番号を仕様に写す
-dataset = features.load_dataset(spec, 20130101, 20241231)
-# dataset.x: (レース数, 18, 次元)、dataset.labels: 1〜5着の正解(5つ、各(レース数, 18))
-
-model.fit(dataset.x, dataset.labels)               # Keras
-features.save_model(model, spec, "models/try1")    # 推論(sazanami-batch)が読める形で保存
+spec = features.pin_spec(features.load_feature_spec("spec.yaml"))   # ビューのハッシュとカテゴリの番号を写す
+dataset = features.load_dataset(spec, 20130101, 20241231)           # dataset.x・dataset.labels
+model.fit(dataset.x, dataset.labels)                                 # Keras
+features.save_model(model, spec, model_dir)                          # 推論できる形のモデルのフォルダ
 ```
 
-仕様の書き方・評価・推論・試作のビュー(sandbox)は[docs/features.md](https://github.com/requrd/jra-tools/blob/master/docs/features.md)。
+各関数の中身・仕様の書式・モデルのフォルダの約束は[docs/features.md](https://github.com/requrd/jra-tools/blob/master/docs/features.md)。学習・評価・本採用の手順は使う側のREADME(Jupyter: One-Stone/jupyter、推論: sazanami-batch)。
 
-## ビューを反映する(最短の例)
+## ビューを反映する(例)
 ```python
 from jra_tools.views import apply_views, load_view_set
 
