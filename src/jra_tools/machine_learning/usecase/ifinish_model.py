@@ -25,3 +25,15 @@ class IEvaluableModel(IFinishModel, Protocol):
         self, x: np.ndarray, y: Any, verbose: Any = ..., return_dict: bool = ...
     ) -> Mapping[str, float]:
         """入力と正解ラベル(出力の順)から、loss・指標(名前→値)."""
+
+
+class ITrainedModel(IEvaluableModel, Protocol):
+    """学習したモデル(Kerasのモデル). 保存するときに、入力の形と出力の名前を使う."""
+
+    @property
+    def input_shape(self) -> Any:
+        """入力の形(先頭はバッチの次元)."""
+
+    @property
+    def output_names(self) -> Sequence[str]:
+        """出力の名前(1着→5着の順)."""

@@ -4,7 +4,7 @@
 それがビューか表かは使う側には関係ない。接続先は環境変数DB(分析用のPostgres)。
 
 流れ: (試作は)apply_sandbox_viewsでsandboxのビューを作る → 仕様を書く → pin_spec(ビューのハッシュとカテゴリの控えを写す)→ load_dataset で学習 →
-save_model_feature_spec(出力の名前を写してモデルのフォルダへ)→ evaluate・predict_finish_probabilities
+save_model(モデルと、出力の名前を写した仕様をフォルダへ)→ evaluate・predict_finish_probabilities
 
 ここは組み立てだけを持つ(machine_learningの層の外)。infrastructureの接続・ファイルを作り、
 interface_adapterの読み手・置き場に渡し、手続き(usecase)を呼ぶ。決まりはentityにある。
@@ -46,6 +46,7 @@ from jra_tools.machine_learning.usecase import model_spec, view_dataset
 from jra_tools.machine_learning.usecase.ifinish_model import (
     IEvaluableModel,
     IFinishModel,
+    ITrainedModel,
 )
 from jra_tools.machine_learning.usecase.view_dataset import PROBABILITY_COLUMNS
 from jra_tools.views import load_view_set, replace_views
@@ -70,6 +71,7 @@ __all__ = [
     "predict_finish_probabilities",
     "read_frame",
     "save_feature_spec",
+    "save_model",
     "save_model_feature_spec",
 ]
 
@@ -180,6 +182,15 @@ def save_feature_spec(spec: FeatureSpec, path: Path | str) -> None:
 def load_model_feature_spec(model_dir: Path | str) -> FeatureSpec:
     """モデルのフォルダ(SavedModel)の仕様を読み、モデルの入力の形と照合する."""
     return model_spec.load_model_feature_spec(SavedModelFolder(model_dir))
+
+
+def save_model(model: ITrainedModel, spec: FeatureSpec, model_dir: Path | str) -> Path:
+    """学習したモデルを推論できる形(SavedModel)でフォルダに書き、出力の名前を写した仕様も書く.
+
+    推論(predict_finish_probabilities・sazanami-batch)は、出力をmodel.output_namesの名前で引く。
+    Keras 3のmodel.exportは出力の名前をoutput_0…にするので、保存はこれを使う。
+    """
+    return model_spec.save_model(SavedModelFolder(model_dir), model, spec)
 
 
 def save_model_feature_spec(

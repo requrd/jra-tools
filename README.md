@@ -74,11 +74,11 @@ groups:
       - {name: waku, encode: category}  # 列の値はコード。番号はcode_categoriesから(pin_specが写す)
 ```
 
-固定した仕様(`pin_spec`・`save_model_feature_spec`が書き足す):
+固定した仕様(`pin_spec`・`save_model`が書き足す):
 
 ```yaml
 view_digest: 1c445b...                          # 学習時のsourceの定義のハッシュ
-output_names: [activation_2, ..., activation_6] # モデルの出力の名前(1着→5着)
+output_names: [activation_4, ..., activation_8] # モデルの出力の名前(1着→5着)
 train_from: 2013-01-01                          # 学習期間(初日・最終日を含む。省略可)
 train_to: 2019-12-31
 groups:
@@ -102,7 +102,7 @@ spec = features.load_feature_spec("spec.yaml")
 spec = features.pin_spec(spec)          # 学習の前に、ハッシュとカテゴリの控えを写す
 dataset = features.load_dataset(spec, 20130101, 20241231, cache_dir="cache")  # 入力と1〜5着のラベル
 spec = dataclasses.replace(spec, train_from=date(2013, 1, 1), train_to=date(2024, 12, 31))
-features.save_model_feature_spec(spec, model_dir, model.output_names)  # モデルと一緒に保存する
+features.save_model(model, spec, model_dir)  # モデル(SavedModel)と、出力の名前を写した仕様を保存する
 
 predictions, metrics = features.evaluate(spec, 20250101, 20250331, model)  # 評価期間(締めた年だけ)
 spec = features.load_model_feature_spec(model_dir)                       # 推論
@@ -145,7 +145,9 @@ features.apply_sandbox_views("schemas")  # 一覧から外したsandboxのビュ
 ### 評価・推論
 - `evaluate`は評価期間を1回読み、Kerasの`evaluate`(出力ごとのloss・指標)と`predict`(出走馬ごとの1〜5着の確率)を表で返す。評価期間は締めた年(`model.races`の`year_complete`)に限る。DBに書くのは使う側
   - 確率の列: `racehorsekey`・`first_prob`〜`fifth_prob`(sandboxの`trial_predictions`と同じ名前)。loss・指標の列: `output`(出力の名前、合計は`total`)・`metric`・`value`
-- 出力の名前は決め打ちせず、`save_model_feature_spec`でモデルの`output_names`(1着→5着の順)を仕様に写し、その順で読む。`model.predict`の結果は名前→値でも、出力の順のリストでもよい
+- 出力の名前は決め打ちせず、`save_model`でモデルの`output_names`(1着→5着の順)を仕様に写し、その順で読む。`model.predict`の結果は名前→値でも、出力の順のリストでもよい
+- 推論(`TFSMLayer`で読むsazanami-batchなど)は、出力を仕様の`output_names`の名前で引く。Keras 3の`model.export`は出力の名前を`output_0`…にするので、保存は`save_model`を使う(`serving_default`が出力の名前→値を返す)
+- `load_model_feature_spec`・`save_model_feature_spec`は、仕様の`output_names`とフォルダのモデルの出力の名前が一致しなければ止める(推論で引けないため)
 - `predict_finish_probabilities`は1〜3着の確率だけを素の値で返す(連対率・オッズは使う側のビューで出す)。出走のない日は空
 
 ## 置き場所(`machine_learning`の層)
