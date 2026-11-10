@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.exc import DBAPIError, OperationalError, ProgrammingError
 
+from jra_tools.machine_learning import features
 from jra_tools.views import (
     ApplyOptions,
     ViewTest,
@@ -17,6 +18,7 @@ from jra_tools.views import (
     applied_digest,
     apply_views,
     parse_view_set,
+    replace_views,
     run_view_tests,
 )
 
@@ -389,3 +391,104 @@ def test_drops_only_functions_removed_from_definition_in_place(engine: Engine, c
             is not None
         )
     assert _exists(engine, "sandbox.mine")
+
+
+SANDBOX_DATA = {"schemas": ["sandbox"], "views": ["sandbox.a", "sandbox.b"]}
+SANDBOX_FILES = {
+    "sandbox/a.sql": "select racekey, distance from staging.races where name like '%S'",
+    "sandbox/b.sql": "select count(*) as n from sandbox.a",
+}
+
+
+@pytest.fixture
+def lab_engine(engine: Engine) -> Iterator[Engine]:
+    """sazanami_labと同じ権限のロール(stagingを読み、sandboxに作れる。metaは読めず、スキーマは作れない)."""
+    role = f"lab_{uuid.uuid4().hex[:8]}"
+    secret = uuid.uuid4().hex
+    with engine.begin() as conn:
+        conn.exec_driver_sql(f"create role {role} login password '{secret}'")
+        conn.exec_driver_sql("create schema sandbox")
+        conn.exec_driver_sql(f"grant usage, create on schema sandbox to {role}")
+        conn.exec_driver_sql(f"grant usage on schema staging to {role}")
+        conn.exec_driver_sql(f"grant select on all tables in schema staging to {role}")
+    lab = create_engine(engine.url.set(username=role, password=secret))
+    yield lab
+    lab.dispose()
+    with engine.begin() as conn:
+        conn.exec_driver_sql("drop schema if exists sandbox cascade")
+        conn.exec_driver_sql(f"revoke all on schema staging from {role}")
+        conn.exec_driver_sql(f"revoke all on all tables in schema staging from {role}")
+        conn.exec_driver_sql(f"drop owned by {role}")
+        conn.exec_driver_sql(f"drop role {role}")
+
+
+def _sandbox_set(files=SANDBOX_FILES, data=SANDBOX_DATA):
+    return parse_view_set(data, files.__getitem__)
+
+
+def test_replace_views_without_view_version(lab_engine: Engine):
+    """meta.view_versionを読めないロールでも反映でき、同じ定義でも毎回流す(記録しない)."""
+    replace_views(lab_engine, _sandbox_set())
+    with lab_engine.begin() as conn:
+        assert conn.execute(text("select n from sandbox.b")).scalar() == 1
+        conn.exec_driver_sql("drop view sandbox.b")
+    replace_views(lab_engine, _sandbox_set())
+    with lab_engine.connect() as conn:
+        assert conn.execute(text("select n from sandbox.b")).scalar() == 1
+
+
+def test_replace_views_drops_views_removed_from_list(lab_engine: Engine):
+    """一覧から外したビュー(手で作ったものも)は消える."""
+    replace_views(lab_engine, _sandbox_set())
+    with lab_engine.begin() as conn:
+        conn.exec_driver_sql("create view sandbox.by_hand as select 1 as one")
+    replace_views(
+        lab_engine, _sandbox_set(data={"schemas": ["sandbox"], "views": ["sandbox.a"]})
+    )
+    assert _exists(lab_engine, "sandbox.a")
+    assert not _exists(lab_engine, "sandbox.b")
+    assert not _exists(lab_engine, "sandbox.by_hand")
+
+
+def test_replace_views_rebuilds_when_columns_change(lab_engine: Engine, caplog):
+    """列を消すと、sandboxのビューを作り直す(表は残る)."""
+    replace_views(lab_engine, _sandbox_set())
+    with lab_engine.begin() as conn:
+        conn.exec_driver_sql("create table sandbox.kept (x int)")
+    changed = {
+        **SANDBOX_FILES,
+        "sandbox/a.sql": "select racekey from staging.races where name like '%S'",
+    }
+    with caplog.at_level(logging.INFO, logger="jra_tools.views.apply"):
+        replace_views(lab_engine, _sandbox_set(changed))
+    assert "作り直します" in caplog.text
+    with lab_engine.connect() as conn:
+        assert list(conn.execute(text("select * from sandbox.a")).keys()) == ["racekey"]
+        assert conn.execute(text("select n from sandbox.b")).scalar() == 1
+    assert _exists(lab_engine, "sandbox.kept")
+
+
+def test_replace_views_keeps_current_views_on_error(lab_engine: Engine):
+    """定義が誤っていれば全体が戻り、今のビューが残る."""
+    replace_views(lab_engine, _sandbox_set())
+    broken = {**SANDBOX_FILES, "sandbox/b.sql": "select no_such_column from sandbox.a"}
+    with pytest.raises(ProgrammingError):
+        replace_views(lab_engine, _sandbox_set(broken))
+    with lab_engine.connect() as conn:
+        assert conn.execute(text("select n from sandbox.b")).scalar() == 1
+
+
+def test_apply_sandbox_views_reads_directory_and_env(
+    lab_engine: Engine, tmp_path, monkeypatch
+):
+    """入口のapply_sandbox_viewsは、フォルダの定義を環境変数DBの接続先に反映する."""
+    (tmp_path / "sandbox").mkdir()
+    (tmp_path / "views.yaml").write_text(
+        "schemas: [sandbox]\nviews: [sandbox.a, sandbox.b]\n", encoding="utf-8"
+    )
+    for path, sql in SANDBOX_FILES.items():
+        (tmp_path / path).write_text(sql, encoding="utf-8")
+    monkeypatch.setenv("DB", lab_engine.url.render_as_string(hide_password=False))
+    features.apply_sandbox_views(tmp_path)
+    with lab_engine.connect() as conn:
+        assert conn.execute(text("select n from sandbox.b")).scalar() == 1

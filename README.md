@@ -54,6 +54,7 @@ failures = run_view_tests(engine, view_set)  # 反映済みのビューにテス
 - 読んでいる最中のクエリがあると、ビューを消す排他ロックを待つ。`lock_timeout`(既定10秒)で諦め、間を置いて`retries`回(既定5回)やり直す
 - 同時に流しても、advisory lockで1つずつ動く
 - テストはハッシュに含めない(テストだけを変えても作り直さない)
+- `replace_views(engine, view_set)`は、ハッシュを読まず・記録せずに毎回同じ手順で反映する(`meta.view_version`を読めない試作のsandbox向け。使う側は入口の`features.apply_sandbox_views`から使う)。スキーマは作らない(あること)。`readers`・`label`は使わない
 ## 特徴量の層から読む(`jra_tools.machine_learning.features`)
 特徴量の仕様の`source`(「スキーマ.名前」。`features.entries_v1`や、試作の`sandbox.entries_try1`など)から、学習・推論・評価の入力を作る。sourceがビューか表かは使う側には関係ない。jra-toolsはstagingを直接読まない。
 
@@ -109,6 +110,15 @@ probs = features.predict_finish_probabilities(spec, 20261101, model)    # [(race
 frame = features.read_frame(spec, 20250101, 20251231)  # 組み立てる前の1頭1行のDataFrame
 features.digest("features.entries_v1")                  # 今の定義のハッシュ
 ```
+
+試作のビュー(sandbox)は、`views.yaml`と同じ形のフォルダ(例: `schemas/views.yaml`に`schemas: [sandbox]`と作る順のビュー、SQLは`schemas/sandbox/<ビュー名>.sql`)を反映する。接続先は同じ環境変数`DB`。
+
+```python
+features.apply_sandbox_views("schemas")  # 一覧から外したsandboxのビューは消える
+```
+
+- 毎回反映する(ハッシュを記録しない)。手順と排他は`apply_views`と同じ(その場で置き換え、できなければsandboxのビューをすべて作り直す。表は残る)
+- 一覧にないsandboxのビュー(手で作ったものも)は消える。sandboxのスキーマと、ビューが読む表は先にあること
 
 - 読んだ表(1頭1行のpandasのDataFrame)を、仕様に従ってテンソルにする。各レースを1〜18の枠に並べ(空き枠は0)、グループごとにカテゴリのone-hot・レースごとの標準化をしてから、最後に`(レース, 18, 次元)`のndarrayにする
 - 学習のデータセットは入力と1〜5着の正解ラベルだけで、払戻は持たない。回収率は、`evaluate`の確率(`racehorsekey`ごと)を`model.entries`・`model.payouts`と結合して出す(使う側のsandboxのビュー・pandas)
