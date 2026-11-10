@@ -1,13 +1,19 @@
 # jra-tools
 Sazanami-AIのデータ・学習のための道具。次の3つを持つ。
 
-| 使い道 | モジュール | 主に使うところ | 説明 |
-|---|---|---|---|
-| 学習・推論・評価の入力を作り、モデルを保存・読み込みする | `jra_tools.machine_learning.features` | Jupyter・sazanami-batch | [docs/features.md](https://github.com/requrd/jra-tools/blob/master/docs/features.md) |
-| 分析用のPostgresのビューを反映する | `jra_tools.views` | sazanami-batch | [docs/views.md](https://github.com/requrd/jra-tools/blob/master/docs/views.md) |
-| JRDBの取り込みの補助・開催日程の照合 | `jra_tools`(`database/`) | sazanami-batch | 下の「JRDB・開催日程」 |
+| 使い道 | モジュール | 主に使うところ |
+|---|---|---|
+| 学習・推論・評価の入力を作り、モデルを保存・読み込みする | `jra_tools.machine_learning.features` | Jupyter・sazanami-batch |
+| 分析用のPostgresのビューを反映する | `jra_tools.views` | sazanami-batch・Jupyter |
+| JRDBの取り込みの補助・開催日程の照合 | `jra_tools`(`database/`) | sazanami-batch |
 
-内部の層の置き場所と、なくしたものの経緯は[docs/architecture.md](https://github.com/requrd/jra-tools/blob/master/docs/architecture.md)。
+## ドキュメント
+| 何を知りたいか | どこ |
+|---|---|
+| 全体のどこにいて、何を持ち・持たないか、中の層 | [docs/architecture.md](https://github.com/requrd/jra-tools/blob/master/docs/architecture.md) |
+| 仕様のYAML・ビューの列・テンソル・カテゴリ・モデルとモデルのフォルダの約束・ビューの反映 | [docs/specification.md](https://github.com/requrd/jra-tools/blob/master/docs/specification.md) |
+| 関数ごとの引数・戻り値 | APIリファレンス(下の「APIリファレンス」で生成) |
+| 学習・評価・本採用の手順、モデルの置き場所 | 使う側のREADME(Jupyter: One-Stone/jupyter、推論: sazanami-batch) |
 
 ## 入れる
 ```
@@ -27,7 +33,7 @@ model.fit(dataset.x, dataset.labels)                                 # Keras
 features.save_model(model, spec, model_dir)                          # 推論できる形のモデルのフォルダ
 ```
 
-各関数の中身・仕様の書式・モデルのフォルダの約束は[docs/features.md](https://github.com/requrd/jra-tools/blob/master/docs/features.md)。学習・評価・本採用の手順は使う側のREADME(Jupyter: One-Stone/jupyter、推論: sazanami-batch)。
+`model`は使う側が作るKerasのモデル(満たす約束は[モデルの約束](https://github.com/requrd/jra-tools/blob/master/docs/specification.md#5-モデルの約束))。
 
 ## ビューを反映する(例)
 ```python
@@ -36,7 +42,7 @@ from jra_tools.views import apply_views, load_view_set
 apply_views(engine, load_view_set("schemas"))   # 定義が変わっていればビューを作り直す
 ```
 
-定義のフォルダの形・反映の動きは[docs/views.md](https://github.com/requrd/jra-tools/blob/master/docs/views.md)。
+定義のフォルダの形・反映の動きは[ビューの定義のフォルダと反映](https://github.com/requrd/jra-tools/blob/master/docs/specification.md#8-ビューの定義のフォルダと反映)。
 
 ## JRDB・開催日程
 `from jra_tools import ...`で使う(sazanami-batchの取り込み・照合)。
@@ -48,6 +54,13 @@ apply_views(engine, load_view_set("schemas"))   # 定義が変わっていれば
 | `get_kaisais(start, end)` | jrdb-modelの開催データを、紐づく表ごと読む |
 | `BaoImporter` | BAOのオッズのCSVをDBに取り込む |
 | `PredictRaceFactory` | 推論するレースのデータを作る |
+
+## APIリファレンス
+docstringから生成する(公開していない。手元で見る)。
+```
+uv run pdoc jra_tools.machine_learning.features jra_tools.views          # ブラウザで開く
+uv run pdoc jra_tools.machine_learning.features jra_tools.views -o site  # HTMLに書き出す
+```
 
 ## テスト
 ```
