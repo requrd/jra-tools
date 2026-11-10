@@ -9,6 +9,7 @@ from jra_tools.views.apply import (
     ViewVersionTableMissing,
     applied_digest,
     apply_views,
+    replace_views,
     run_view_tests,
 )
 from jra_tools.views.view_set import (
@@ -30,5 +31,6 @@ __all__ = [
     "apply_views",
     "load_view_set",
     "parse_view_set",
+    "replace_views",
     "run_view_tests",
 ]

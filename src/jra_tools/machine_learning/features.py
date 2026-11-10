@@ -3,7 +3,7 @@
 使う側(sazanami-batch・Jupyter)はここだけを使う。読む先は仕様のsource(「スキーマ.名前」)で、
 それがビューか表かは使う側には関係ない。接続先は環境変数DB(分析用のPostgres)。
 
-流れ: 仕様を書く → pin_spec(ビューのハッシュとカテゴリの控えを写す)→ load_dataset で学習 →
+流れ: (試作は)apply_sandbox_viewsでsandboxのビューを作る → 仕様を書く → pin_spec(ビューのハッシュとカテゴリの控えを写す)→ load_dataset で学習 →
 save_model_feature_spec(出力の名前を写してモデルのフォルダへ)→ evaluate・predict_finish_probabilities
 
 ここは組み立てだけを持つ(machine_learningの層の外)。infrastructureの接続・ファイルを作り、
@@ -48,6 +48,7 @@ from jra_tools.machine_learning.usecase.ifinish_model import (
     IFinishModel,
 )
 from jra_tools.machine_learning.usecase.view_dataset import PROBABILITY_COLUMNS
+from jra_tools.views import load_view_set, replace_views
 
 __all__ = [
     "DEFAULT_CATEGORY_SOURCES",
@@ -57,6 +58,7 @@ __all__ = [
     "InputDataset",
     "Labelref",
     "TableDataset",
+    "apply_sandbox_views",
     "digest",
     "evaluate",
     "load_dataset",
@@ -149,6 +151,20 @@ def evaluate(  # noqa: PLR0913 (期間・ラベル・置き場はどれも使う
         return view_dataset.evaluate_period(
             reader, spec, start, end, model, labels, _store(cache_dir)
         )
+
+
+def apply_sandbox_views(directory: Path | str) -> None:
+    """試作のビューの定義(views.yamlと同じ形)を、ハッシュを記録せずに反映する.
+
+    一覧から外したビュー・関数は消える。管理するスキーマ(sandboxなど)はDBにあること。
+
+    Args:
+        directory (Path | str): views.yamlのあるフォルダ(SQLは<スキーマ>/<ビュー名>.sql)
+
+    """
+    view_set = load_view_set(directory)
+    with engine_from_env() as engine:
+        replace_views(engine, view_set)
 
 
 def load_feature_spec(path: Path | str) -> FeatureSpec:

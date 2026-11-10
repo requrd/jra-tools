@@ -14,12 +14,14 @@
 ハッシュを記録する表meta.view_versionは作らない。表を作るコマンド
 (sazanami-batchのapply-model-and-meta-tables)が作り、ここは読み書きだけをする。
 表の名前と列(digest・applied_at・label)は、そのコマンドとの約束。
+
+replace_viewsは、ハッシュを記録せずに毎回同じ手順で反映する(meta.view_versionを読めない試作のsandbox向け)。
 """
 
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, TypeVar
 
 from sqlalchemy import Connection, Engine, text
 from sqlalchemy.exc import DBAPIError, OperationalError
@@ -30,6 +32,8 @@ from jra_tools.views.view_set import ViewSet
 ADVISORY_LOCK_KEY = 7_316_042_901
 # lock_timeoutにかかったときのSQLSTATE
 _LOCK_NOT_AVAILABLE = "55P03"
+
+T = TypeVar("T")
 
 _logger = logging.getLogger(__name__)
 
@@ -85,21 +89,33 @@ def apply_views(
         ViewVersionTableMissing: meta.view_versionがない
 
     """
-    for attempt in range(options.retries + 1):
-        try:
-            with engine.begin() as conn:
-                return _apply(conn, view_set, options)
-        except OperationalError as e:
-            if _sqlstate(e) != _LOCK_NOT_AVAILABLE or attempt == options.retries:
-                raise
-            _logger.warning(
-                "ロックを取れませんでした。%s秒後にやり直します(%d/%d)",
-                options.retry_wait,
-                attempt + 1,
-                options.retries,
-            )
-            time.sleep(options.retry_wait)
-    raise AssertionError("unreachable")
+    return _with_retries(engine, lambda conn: _apply(conn, view_set, options), options)
+
+
+def replace_views(
+    engine: Engine, view_set: ViewSet, options: ApplyOptions = DEFAULT_OPTIONS
+) -> None:
+    """ハッシュを記録せずに、ビューと関数を反映する(試作のsandboxなど).
+
+    apply_viewsと同じく、その場で置き換え、置き換えられなければ管理するスキーマのビューと関数を
+    作り直し、定義から外したビュー・関数を消す。apply_viewsとの違いは次のとおり。
+
+    - meta.view_versionを読まない・書かない(定義が同じでも毎回反映する)
+    - スキーマを作らない(あること)。readers・labelは使わない
+
+    Args:
+        engine (Engine): Postgresのエンジン
+        view_set (ViewSet): 定義一式
+        options (ApplyOptions): 設定(lock_timeout・retries・retry_waitだけを使う)
+
+    """
+
+    def replace(conn: Connection) -> None:
+        _lock(conn, options)
+        _replace_or_rebuild(conn, view_set)
+        _logger.info("ビューを%d個反映しました", len(view_set.views))
+
+    _with_retries(engine, replace, options)
 
 
 def applied_digest(conn: Connection) -> Optional[str]:
@@ -134,12 +150,38 @@ def run_view_tests(engine: Engine, view_set: ViewSet) -> List[TestFailure]:
     return failures
 
 
-def _apply(conn: Connection, view_set: ViewSet, options: ApplyOptions) -> bool:
+def _with_retries(
+    engine: Engine, apply: Callable[[Connection], T], options: ApplyOptions
+) -> T:
+    """1トランザクションで流す. lock_timeoutにかかったら、間を置いてやり直す."""
+    for attempt in range(options.retries + 1):
+        try:
+            with engine.begin() as conn:
+                return apply(conn)
+        except OperationalError as e:
+            if _sqlstate(e) != _LOCK_NOT_AVAILABLE or attempt == options.retries:
+                raise
+            _logger.warning(
+                "ロックを取れませんでした。%s秒後にやり直します(%d/%d)",
+                options.retry_wait,
+                attempt + 1,
+                options.retries,
+            )
+            time.sleep(options.retry_wait)
+    raise AssertionError("unreachable")
+
+
+def _lock(conn: Connection, options: ApplyOptions) -> None:
+    """ロックを待つ上限を決め、反映どうしの排他のadvisory lockを取る."""
     conn.execute(
         text("select set_config('lock_timeout', :timeout, true)"),
         {"timeout": options.lock_timeout},
     )
     conn.execute(text("select pg_advisory_xact_lock(:key)"), {"key": ADVISORY_LOCK_KEY})
+
+
+def _apply(conn: Connection, view_set: ViewSet, options: ApplyOptions) -> bool:
+    _lock(conn, options)
     if conn.execute(text("select to_regclass('meta.view_version')")).scalar() is None:
         raise ViewVersionTableMissing(
             "meta.view_versionがありません。表を作るコマンド"
@@ -152,14 +194,7 @@ def _apply(conn: Connection, view_set: ViewSet, options: ApplyOptions) -> bool:
     quote = conn.dialect.identifier_preparer.quote
     for schema in view_set.schemas:
         conn.exec_driver_sql(f"create schema if not exists {quote(schema)}")
-    try:
-        with conn.begin_nested():
-            _replace_in_place(conn, view_set)
-    except DBAPIError as e:
-        if isinstance(e, OperationalError) and _sqlstate(e) == _LOCK_NOT_AVAILABLE:
-            raise
-        _logger.info("その場で置き換えられないため、作り直します: %s", _first_line(e))
-        _rebuild(conn, view_set)
+    _replace_or_rebuild(conn, view_set)
     for schema in view_set.schemas:
         for reader in options.readers:
             conn.exec_driver_sql(
@@ -174,6 +209,18 @@ def _apply(conn: Connection, view_set: ViewSet, options: ApplyOptions) -> bool:
     )
     _logger.info("ビューを%d個反映しました", len(view_set.views))
     return True
+
+
+def _replace_or_rebuild(conn: Connection, view_set: ViewSet) -> None:
+    """その場で置き換え、置き換えられなければ作り直す."""
+    try:
+        with conn.begin_nested():
+            _replace_in_place(conn, view_set)
+    except DBAPIError as e:
+        if isinstance(e, OperationalError) and _sqlstate(e) == _LOCK_NOT_AVAILABLE:
+            raise
+        _logger.info("その場で置き換えられないため、作り直します: %s", _first_line(e))
+        _rebuild(conn, view_set)
 
 
 def _replace_in_place(conn: Connection, view_set: ViewSet) -> None:
