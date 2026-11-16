@@ -283,7 +283,7 @@ def test_label_column_as_feature(engine: Engine, sample_kaisais: List[KaisaiData
 
 
 class _FakeModel:
-    """出力の値がレースの位置・枠で決まるモデル. 受け取った入力を残す."""
+    """出力の値がレースの位置・馬番の位置で決まるモデル. 受け取った入力を残す."""
 
     def __init__(self):
         self.x = None
@@ -301,7 +301,7 @@ class _FakeModel:
 
 
 def test_predict_finish_probabilities(engine: Engine, sample_kaisais: List[KaisaiData]):
-    """出走馬ごとに、その馬のレース・馬番の枠の確率を返す. 入力はload_view_inputと同じ."""
+    """出走馬ごとに、その馬のレース・馬番の位置の確率を返す. 入力はload_view_inputと同じ."""
     spec = _pinned()
     ymd = sample_kaisais[0].ymd
     inputs = features.load_input(spec, ymd)

@@ -302,7 +302,7 @@ def _predict(
     outputs: Sequence[Any] = (
         [preds[name] for name in names] if isinstance(preds, Mapping) else list(preds)
     )
-    # 各出走馬の、入力のレースの位置と枠(馬番 - 1)
+    # 各出走馬の、入力のレースの位置と馬番の位置(馬番 - 1)
     race = pd.Index(inputs.racekeys).get_indexer(frame["racekey"])
     slot = frame["umaban"].to_numpy(dtype=int) - 1
     result = pd.DataFrame({"racehorsekey": frame["racehorsekey"].to_numpy()})

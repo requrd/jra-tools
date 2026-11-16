@@ -59,15 +59,15 @@ def _frame(**overrides) -> pd.DataFrame:
 
 
 def test_input_values():
-    """空き枠は0、文字列は0として標準化、カテゴリは控えの番号の位置、控えにない・NULLは例外の列."""
+    """存在しない馬番は0、文字列は0として標準化、カテゴリは控えの番号の位置、控えにない・NULLは例外の列."""
     x = frame_to_input(_frame(), SPEC).x
 
     assert x.shape == (2, 4, 5)
-    # レースAの空き枠(馬番2)は、標準化した値(0の行も含めて計算)
+    # レースAの存在しない馬番(馬番2)は、標準化した値(0の行も含めて計算)
     idm_a = np.array([50.0, 0, 0, 41.5])
     assert np.allclose(x[0, :, 0], (idm_a - idm_a.mean()) / idm_a.std())
     assert x[0, 0, 2:].tolist() == [1, 0, 0]  # "1"→1
-    assert x[0, 1, 2:].tolist() == [0, 0, 0]  # 空き枠
+    assert x[0, 1, 2:].tolist() == [0, 0, 0]  # 存在しない馬番
     assert x[0, 2, 2:].tolist() == [0, 1, 0]  # "3"→2
     assert x[0, 3, 2:].tolist() == [0, 0, 1]  # "9"→例外の列
     assert x[1, 1, 2:].tolist() == [1, 0, 0]  # "2"→1(まとめた番号)
@@ -104,7 +104,7 @@ def test_needs_pinned_spec():
 
 
 def test_zero_variance():
-    """全枠が同じ値の列は、StandardScalerと同じく割らずに0になる."""
+    """max_horses個の位置がすべて同じ値の列は、StandardScalerと同じく割らずに0になる."""
     frame = _frame(
         racehorsekey=["a1", "a2", "a3", "a4", "b1"],
         racekey=["A", "A", "A", "A", "B"],
@@ -138,7 +138,7 @@ def test_invalid_frame(overrides, message):
 
 
 def test_to_slots():
-    """各レースを1〜max_horsesの枠に並べ、空き枠は値なし."""
+    """各レースの馬を馬番1〜max_horsesの位置に並べ、存在しない馬番は値なし."""
     slots = to_slots(_frame(), 4)
 
     assert slots.index.tolist() == [(r, u) for r in "AB" for u in range(1, 5)]

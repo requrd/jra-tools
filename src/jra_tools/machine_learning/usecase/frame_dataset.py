@@ -1,15 +1,15 @@
 """1頭1行のDataFrameから、学習用のデータセット・推論の入力を組み立てる.
 
 featuresのビューから読んだ表を、仕様に従って(レース, max_horses, 次元)のテンソルにする。
-各レースを1〜max_horsesの枠に並べ(空き枠は0)、グループごとに変換してから最後にndarrayにする。
+各レースの馬を馬番1〜max_horsesの位置に並べ(存在しない馬番は0)、グループごとに変換してから最後にndarrayにする。
 
 処理の場所(どの変換をするかはコードではなく仕様で決まる):
-- 枠への並べ直し: to_slots
+- 馬番の位置への並べ直し: to_slots
 - 特徴量ごとの列への変換: _group_frame。仕様のencodeがcategoryなら_category、それ以外は_number
   - _number: 数値にする。文字列は0
-  - _category: 仕様の控え(コード→番号)でone-hot。控えにないコード・NULLは例外の列。空き枠はすべて0
+  - _category: 仕様の控え(コード→番号)でone-hot。控えにないコード・NULLは例外の列。存在しない馬番はすべて0
 - レースごとの標準化(数値系): _group_frameの中。グループのtransformが
-  standardize_per_raceのとき、列ごとに、レース内の全枠(空き枠の0を含む)の平均・標準偏差で
+  standardize_per_raceのとき、列ごとに、レース内のmax_horses個の位置すべて(存在しない馬番の0を含む)の平均・標準偏差で
   標準化する
 - テンソルへの変換: frame_to_inputの最後のreshape
 
@@ -82,11 +82,11 @@ def frame_to_dataset(frame: pd.DataFrame, spec: FeatureSpec) -> TableDataset:
 
 
 def to_slots(frame: pd.DataFrame, max_horses: int) -> pd.DataFrame:
-    """各レースを1〜max_horsesの枠に並べた表. 空き枠の行は値なし(NaN).
+    """各レースの馬を馬番1〜max_horsesの位置に並べた表. 存在しない馬番の行は値なし(NaN).
 
     Args:
         frame (pd.DataFrame): 1頭1行の表
-        max_horses (int): 1レースの枠の数
+        max_horses (int): 1レースの馬番の位置の数
 
     Raises:
         ValueError: 馬番が範囲外・重複している、またはレースがまとまって並んでいない場合
@@ -113,7 +113,7 @@ def to_slots(frame: pd.DataFrame, max_horses: int) -> pd.DataFrame:
 
 
 def _group_frame(slots: pd.DataFrame, group: FeatureGroup) -> pd.DataFrame:
-    """グループの特徴量を次元ごとの列にし、変換する. 空き枠は0."""
+    """グループの特徴量を次元ごとの列にし、変換する. 存在しない馬番は0."""
     occupied = slots["racehorsekey"].notna()
     columns = [
         _category(slots[f.source], occupied, f)
@@ -130,13 +130,13 @@ def _group_frame(slots: pd.DataFrame, group: FeatureGroup) -> pd.DataFrame:
 
 
 def _number(values: pd.Series) -> pd.Series:
-    """数値にする. 文字列は0にする. 空き枠は値なしのまま."""
+    """数値にする. 文字列は0にする. 存在しない馬番は値なしのまま."""
     is_text = values.map(lambda v: isinstance(v, str))
     return values.mask(is_text, 0).astype(float)
 
 
 def _category(values: pd.Series, occupied: pd.Series, feature: Feature) -> pd.DataFrame:
-    """one-hotの列(最後の列が例外の列). 空き枠はすべて0."""
+    """one-hotの列(最後の列が例外の列). 存在しない馬番はすべて0."""
     categories = feature.categories or {}
     matrix = np.zeros((len(values), feature.size))
     rows = np.flatnonzero(occupied.to_numpy())
