@@ -24,7 +24,7 @@ class Transform(StrEnum):
     """グループ単位の変換."""
 
     NONE = "none"
-    # レースごとに標準化する(空き枠の0の行も含めたmax_horses行で計算する)
+    # レースごとに標準化する(存在しない馬番の0の行も含めたmax_horses行で計算する)
     STANDARDIZE_PER_RACE = "standardize_per_race"
 
 

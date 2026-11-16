@@ -16,7 +16,7 @@ jra-toolsが受け取るもの・作るものが満たす約束。全体の流�
 
 ```yaml
 name: sample                           # 仕様の名前
-max_horses: 18                         # 1レースの枠の数
+max_horses: 18                         # 1レースの馬番の位置の数
 source: features.entries_v1            # 入力を読むビュー(表でもよい)
 view_digest: 1c445b...                 # 固定するときに写る
 train_from: 2013-01-01                 # 学習期間(両端を含む。保存する前に書く)
@@ -38,10 +38,10 @@ groups:
 | 項目 | 書く人 | 中身 |
 |---|---|---|
 | `name` | 使う人 | 仕様の名前(読み直しの節約のファイル名にも使う) |
-| `max_horses` | 使う人 | 1レースの枠の数(18) |
+| `max_horses` | 使う人 | 1レースの馬番の位置の数(18) |
 | `source` | 使う人 | 入力を読むビュー(「スキーマ.名前」) |
 | `groups[].name` | 使う人 | グループの名前 |
-| `groups[].transform` | 使う人 | `none`、または`standardize_per_race`(レースごとに標準化。空き枠の0の行も含めた`max_horses`行で計算) |
+| `groups[].transform` | 使う人 | `none`、または`standardize_per_race`(レースごとに標準化。存在しない馬番の0の行も含めた`max_horses`行で計算) |
 | `groups[].features[].name` | 使う人 | 特徴量の名前 |
 | `groups[].features[].source` | 使う人 | ビューの列の名前(省略すると`name`) |
 | `groups[].features[].encode` | 使う人 | `number`(既定)、または`category`(one-hot) |
@@ -69,7 +69,7 @@ groups:
 ## 3. テンソル
 | 名前 | 形 | 中身 |
 |---|---|---|
-| `x` | `(レース数, max_horses, 次元)` | 入力。馬番 − 1 の位置に各馬を置き、空き枠は0 |
+| `x` | `(レース数, max_horses, 次元)` | 入力。馬番 − 1 の位置に各馬を置き、存在しない馬番は0 |
 | `labels` | 5つの`(レース数, max_horses)`のリスト | 1着〜5着の正解のone-hot(1着→5着の順) |
 | `racekeys` | `(レース数,)` | 各レースのキー |
 
@@ -91,7 +91,7 @@ jra-toolsはモデルを作らない。使う側が作ったモデルを、保�
 | 項目 | 約束 |
 |---|---|
 | 入力 | 1つ。形は`(None, max_horses, 次元)`(仕様の`max_horses`・`size`と同じ) |
-| 出力 | 5つ。順に1着・2着・3着・4着・5着の確率で、それぞれ`(None, max_horses)`。各レースの枠で合計1(softmax) |
+| 出力 | 5つ。順に1着・2着・3着・4着・5着の確率で、それぞれ`(None, max_horses)`。各レースの馬番の位置(max_horses個)で合計1(softmax) |
 | 出力の名前 | 5つとも違う名前(Kerasの`model.output_names`)。保存するときに仕様の`output_names`に写り、推論はこの名前で出力を引く |
 | 学習 | `labels`(1着→5着の順の5つ)を正解にする。損失は出力ごとの`categorical_crossentropy`が素直 |
 | 評価に渡すとき | compile済み(`evaluate`・`predict`を呼ぶ)。指標の名前は`<出力の名前>_<指標>`で、出力ごとに分ける |
@@ -102,7 +102,7 @@ jra-toolsはモデルを作らない。使う側が作ったモデルを、保�
 import keras
 
 x_in = keras.Input((spec.max_horses, spec.size))
-h = keras.layers.Conv1D(64, 1, activation="relu")(x_in)          # 枠ごとに同じ重みをかける
+h = keras.layers.Conv1D(64, 1, activation="relu")(x_in)          # 馬番の位置ごとに同じ重みをかける
 outputs = [
     keras.layers.Activation("softmax")(keras.layers.Flatten()(keras.layers.Conv1D(1, 1)(h)))
     for _ in range(5)                                             # 1着→5着

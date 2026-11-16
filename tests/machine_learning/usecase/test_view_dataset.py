@@ -154,7 +154,7 @@ class _Store:
 
 
 class _Model:
-    """出力ごとに、枠の番号(0から)を値にした確率を返すモデル."""
+    """出力ごとに、馬番の位置の番号(0から。馬番 - 1)を値にした確率を返すモデル."""
 
     def __init__(self, as_dict: bool = True):
         self.as_dict = as_dict
