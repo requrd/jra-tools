@@ -17,6 +17,7 @@ from jra_tools.views import (
     ViewVersionTableMissing,
     applied_digest,
     apply_views,
+    grant_readers,
     parse_view_set,
     replace_views,
     run_view_tests,
@@ -315,6 +316,98 @@ def test_readers_can_select(engine: Engine):
             for schema in ("model", "features"):
                 conn.exec_driver_sql(f"drop schema if exists {schema} cascade")
             conn.exec_driver_sql(f"drop role {role}")
+
+
+@pytest.fixture
+def roles(engine: Engine) -> Iterator[tuple]:
+    """読み取りのロール2つ. 終わったら管理するスキーマごと消してからロールを消す."""
+    names = tuple(f"reader_{uuid.uuid4().hex[:8]}" for _ in range(2))
+    with engine.begin() as conn:
+        for name in names:
+            conn.exec_driver_sql(f"create role {name}")
+    yield names
+    with engine.begin() as conn:
+        for schema in ("model", "features", "extra"):
+            conn.exec_driver_sql(f"drop schema if exists {schema} cascade")
+        for name in names:
+            conn.exec_driver_sql(f"drop role {name}")
+
+
+def _can(engine: Engine, role: str, view: str) -> bool:
+    schema = view.partition(".")[0]
+    with engine.connect() as conn:
+        return bool(
+            conn.execute(
+                text(
+                    "select has_schema_privilege(:role, :schema, 'usage')"
+                    " and has_table_privilege(:role, :view, 'select')"
+                ),
+                {"role": role, "schema": schema, "view": view},
+            ).scalar()
+        )
+
+
+def _with_readers(readers):
+    return parse_view_set({**DATA, "readers": readers}, FILES.__getitem__)
+
+
+def test_readers_by_schema(engine: Engine, roles: tuple):
+    """views.yamlのreadersのとおり、スキーマごとに読めるロールが違う."""
+    ro, web = roles
+    apply_views(engine, _with_readers({"model": [ro], "features": [web]}))
+    assert _can(engine, ro, "model.races")
+    assert not _can(engine, ro, "features.entries")
+    assert _can(engine, web, "features.entries")
+    assert not _can(engine, web, "model.races")
+
+
+def test_readers_removed_lose_access(engine: Engine, roles: tuple):
+    """readersから外したロールは、次の反映で読めなくなる(PUBLICも外す)."""
+    ro, web = roles
+    apply_views(engine, _with_readers({"model": [ro, web], "features": [ro]}))
+    with engine.begin() as conn:
+        conn.exec_driver_sql("grant usage on schema model to public")
+        conn.exec_driver_sql("grant select on model.races to public")
+    apply_views(engine, _with_readers({"model": [ro]}))
+    assert _can(engine, ro, "model.races")
+    assert not _can(engine, web, "model.races")
+    assert not _can(engine, ro, "features.entries")
+    with engine.connect() as conn:
+        assert not conn.execute(
+            text("select has_schema_privilege('public', 'model', 'usage')")
+        ).scalar()
+
+
+def test_readers_with_unknown_role_apply_nothing(engine: Engine, roles: tuple):
+    """ないロールを書くと止め、何も反映しない(名前の誤りで誰も読めなくなるのを防ぐ)."""
+    with pytest.raises(ValueError, match="ないロール"):
+        apply_views(engine, _with_readers({"model": ["no_such_role_x"]}))
+    with engine.connect() as conn:
+        assert applied_digest(conn) is None
+        assert conn.execute(text("select to_regclass('model.races')")).scalar() is None
+
+
+def test_readers_in_both_places_stop(engine: Engine, roles: tuple):
+    """views.yamlのreadersとApplyOptionsのreadersの両方があれば止める."""
+    with pytest.raises(ValueError, match="どちらか"):
+        apply_views(
+            engine,
+            _with_readers({"model": [roles[0]]}),
+            ApplyOptions(readers=(roles[1],)),
+        )
+
+
+def test_grant_readers_on_other_schema(engine: Engine, roles: tuple):
+    """管理するスキーマの外(seedsなど)にも、使う側がgrant_readersで同じように付けられる."""
+    ro, web = roles
+    with engine.begin() as conn:
+        conn.exec_driver_sql("create schema extra")
+        conn.exec_driver_sql("create table extra.codes (code text)")
+        conn.exec_driver_sql(f"grant usage on schema extra to {web}")
+        conn.exec_driver_sql(f"grant select on extra.codes to {web}")
+        grant_readers(conn, "extra", [ro])
+    assert _can(engine, ro, "extra.codes")
+    assert not _can(engine, web, "extra.codes")
 
 
 def test_run_view_tests(engine: Engine):

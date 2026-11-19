@@ -19,12 +19,16 @@ views.yamlの例:
   スキーマ自体と、そこに置いた表は消さない
 - functions: ビューより先に流すSQL(共通の変換の関数など)。省略できる
 - views: 「スキーマ.ビュー名」を作る順に並べる。SQLは<スキーマ>/<ビュー名>.sql
+- readers: スキーマごとに読めるロール(例: {web: [sazanami_web], model: [sazanami_ro]})。省略できる。
+  書いたときは、apply_viewsが管理するスキーマをそのとおりにし、書いていないロールからは外す
+  (書いていない管理するスキーマは、持ち主のほか誰も読めない)。schemasにないスキーマ(seedsなど)も書ける。
+  そのスキーマは、使う側がgrant_readersで付ける
 """
 
 import hashlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping, Tuple
+from typing import Any, Callable, Mapping, Optional, Tuple
 
 import yaml
 
@@ -64,6 +68,8 @@ class ViewSet:
     tests: Tuple[ViewTest, ...]
     # views.yaml・関数・ビューのSQLから求めたハッシュ。テストは含めない
     digest: str
+    # スキーマごとに読めるロール。views.yamlにreadersがなければNone
+    readers: Optional[Mapping[str, Tuple[str, ...]]] = None
 
 
 def parse_view_set(
@@ -99,8 +105,29 @@ def parse_view_set(
     if duplicated:
         raise ValueError(f"同じビューが複数あります: {duplicated}")
     return ViewSet(
-        schemas, functions, tuple(views), tests, _digest(data, functions, views)
+        schemas,
+        functions,
+        tuple(views),
+        tests,
+        _digest(data, functions, views),
+        _parse_readers(data.get("readers")),
     )
+
+
+def _parse_readers(data: Any) -> Optional[Mapping[str, Tuple[str, ...]]]:
+    """views.yamlのreaders(スキーマ→ロールの一覧)を読む. なければNone."""
+    if data is None:
+        return None
+    if not isinstance(data, Mapping):
+        raise ValueError(f"readersはスキーマごとのロールの一覧で書いてください: {data}")
+    readers = {}
+    for schema, roles in data.items():
+        if not isinstance(roles, list) or not all(isinstance(r, str) for r in roles):
+            raise ValueError(
+                f"readersの{schema}はロールの名前の一覧で書いてください: {roles}"
+            )
+        readers[str(schema)] = tuple(roles)
+    return readers
 
 
 def load_view_set(directory: Path | str) -> ViewSet:

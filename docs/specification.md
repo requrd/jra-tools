@@ -156,6 +156,10 @@ functions: [functions.sql]   # ビューより先に流すSQL。省略できる
 views:                       # 作る順
   - model.races
   - model.entries
+readers:                     # スキーマごとに読めるロール。省略できる
+  model: [sazanami_ro]
+  web: [sazanami_web]
+  seeds: [sazanami_ro, sazanami_lab]   # schemasの外のスキーマも書ける(使う側がgrant_readersで付ける)
 ```
 sandboxの試作は`schemas: [sandbox]`で、ビューだけを書く。
 
@@ -167,6 +171,14 @@ sandboxの試作は`schemas: [sandbox]`で、ビューだけを書く。
 - 置き換えられないとき(列を消す・改名する・型を変える、関数の戻り値の型を変えるなど)は、`schemas`のスキーマのビューと関数をすべて消して作り直す。依存するほかのスキーマのビューも消え、その名前を警告のログに残す
 - 関数はCASCADEで消さない。表の列の既定値などが関数を使っていれば止まる(全体が戻る)
 - 定義とstagingの列が合わなければPostgresがエラーにし、全体が戻る(今のビューと記録が残る)
+
+### 読む権限(`readers`・`grant_readers`)
+- views.yamlに`readers`を書いたとき、`apply_views`は`schemas`のスキーマごとに、書いたロールへスキーマの使用権とすべての表・ビューのSELECTを付け、ほかのロール(PUBLICを含む。持ち主は除く)からはスキーマの使用権と表・ビューの権限を外す。`readers`に書いていない管理するスキーマは、持ち主のほか誰も読めない
+- `readers`はハッシュに入るので、書き換えれば次の反映で付け直す
+- `readers`に、ないロールがあれば止まる(全体が戻る)。名前の誤りで誰も読めなくなるのを防ぐ
+- `readers`を書かないときは、`ApplyOptions.readers`のロールをすべての管理するスキーマに付ける(外すことはしない)。両方あれば止まる
+- `schemas`の外のスキーマ(seedsなど)は、使う側が`grant_readers(conn, スキーマ, ロール)`で同じように付ける
+- ビューは持ち主の権限で中の表を読むので、`web`だけを読めるロールでも、`web`のビューが読むmodelの行は読める
 
 ### 反映(sandbox: `replace_views`)
 - 上と同じ手順で、ハッシュを読まず・記録せずに毎回反映する(`meta`を読めないロールでも流せる)。スキーマは作らない。権限は付けない

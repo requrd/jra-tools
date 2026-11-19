@@ -21,7 +21,7 @@ replace_viewsは、ハッシュを記録せずに毎回同じ手順で反映す�
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Tuple, TypeVar
+from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeVar
 
 from sqlalchemy import Connection, Engine, text
 from sqlalchemy.exc import DBAPIError, OperationalError
@@ -42,7 +42,8 @@ _logger = logging.getLogger(__name__)
 class ApplyOptions:
     """apply_viewsの設定."""
 
-    # 管理するスキーマを読めるようにするロール
+    # 管理するスキーマを読めるようにするロール(すべてのスキーマに同じように付ける)。
+    # views.yamlにreaders(スキーマごと)を書いたときは使わない(両方あれば止める)
     readers: Tuple[str, ...] = ()
     # 記録に残す文字列(batchのイメージのタグなど)
     label: str = ""
@@ -180,8 +181,83 @@ def _lock(conn: Connection, options: ApplyOptions) -> None:
     conn.execute(text("select pg_advisory_xact_lock(:key)"), {"key": ADVISORY_LOCK_KEY})
 
 
+def grant_readers(conn: Connection, schema: str, readers: Sequence[str]) -> None:
+    """スキーマを、readersのロールだけが読めるようにする.
+
+    readersのロールに、スキーマの使用権と、スキーマのすべての表・ビューのSELECTを付ける。
+    ほかのロール(PUBLICを含む。スキーマ・表の持ち主は除く)からは、スキーマの使用権と
+    表・ビューの権限を外す。views.yamlのreadersを、apply_viewsは管理するスキーマに、
+    使う側はそれ以外のスキーマ(seedsなど)に付けるときに使う。
+
+    Args:
+        conn (Connection): トランザクションの中の接続
+        schema (str): スキーマ
+        readers (Sequence[str]): 読めるロール
+
+    Raises:
+        ValueError: ないロールがある場合(名前の誤りで誰も読めなくなるのを防ぐ)
+
+    """
+    existing = set(
+        conn.execute(
+            text("select rolname from pg_roles where rolname = any(:roles)"),
+            {"roles": list(readers)},
+        ).scalars()
+    )
+    missing = [role for role in readers if role not in existing]
+    if missing:
+        raise ValueError(
+            f"スキーマ{schema}のreadersに、ないロールがあります: {missing}"
+        )
+    quote = conn.dialect.identifier_preparer.quote
+    for grantee in _grantees(conn, schema):
+        if grantee in readers:
+            continue
+        target = "public" if grantee == "public" else quote(grantee)
+        conn.exec_driver_sql(
+            f"revoke all on all tables in schema {quote(schema)} from {target}"
+        )
+        conn.exec_driver_sql(f"revoke usage on schema {quote(schema)} from {target}")
+    for reader in readers:
+        conn.exec_driver_sql(
+            f"grant usage on schema {quote(schema)} to {quote(reader)}"
+        )
+        conn.exec_driver_sql(
+            f"grant select on all tables in schema {quote(schema)} to {quote(reader)}"
+        )
+
+
+def _grantees(conn: Connection, schema: str) -> List[str]:
+    """スキーマ・その表とビューに権限を持つロール(持ち主を除く). PUBLICは"public"."""
+    rows = conn.execute(
+        text(
+            """
+            select distinct coalesce(r.rolname, 'public')
+            from (
+                select (aclexplode(n.nspacl)).grantee, n.nspowner as owner
+                from pg_namespace as n
+                where n.nspname = :schema and n.nspacl is not null
+                union all
+                select (aclexplode(c.relacl)).grantee, c.relowner as owner
+                from pg_class as c
+                join pg_namespace as n on n.oid = c.relnamespace
+                where n.nspname = :schema and c.relacl is not null
+            ) as a
+            left join pg_roles as r on r.oid = a.grantee
+            where a.grantee <> a.owner
+            """
+        ),
+        {"schema": schema},
+    ).scalars()
+    return sorted(rows)
+
+
 def _apply(conn: Connection, view_set: ViewSet, options: ApplyOptions) -> bool:
     _lock(conn, options)
+    if view_set.readers is not None and options.readers:
+        raise ValueError(
+            "読めるロールは、views.yamlのreadersかApplyOptionsのreadersのどちらかで指定してください"
+        )
     if conn.execute(text("select to_regclass('meta.view_version')")).scalar() is None:
         raise ViewVersionTableMissing(
             "meta.view_versionがありません。表を作るコマンド"
@@ -195,14 +271,18 @@ def _apply(conn: Connection, view_set: ViewSet, options: ApplyOptions) -> bool:
     for schema in view_set.schemas:
         conn.exec_driver_sql(f"create schema if not exists {quote(schema)}")
     _replace_or_rebuild(conn, view_set)
-    for schema in view_set.schemas:
-        for reader in options.readers:
-            conn.exec_driver_sql(
-                f"grant usage on schema {quote(schema)} to {quote(reader)}"
-            )
-            conn.exec_driver_sql(
-                f"grant select on all tables in schema {quote(schema)} to {quote(reader)}"
-            )
+    if view_set.readers is None:
+        for schema in view_set.schemas:
+            for reader in options.readers:
+                conn.exec_driver_sql(
+                    f"grant usage on schema {quote(schema)} to {quote(reader)}"
+                )
+                conn.exec_driver_sql(
+                    f"grant select on all tables in schema {quote(schema)} to {quote(reader)}"
+                )
+    else:
+        for schema in view_set.schemas:
+            grant_readers(conn, schema, view_set.readers.get(schema, ()))
     conn.execute(
         text("insert into meta.view_version (digest, label) values (:digest, :label)"),
         {"digest": view_set.digest, "label": options.label},
