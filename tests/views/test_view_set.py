@@ -84,3 +84,22 @@ def test_load_from_directory(tmp_path: Path):
     digest = view_set.digest
     (tmp_path / "tests" / "a_first.sql").write_text("select 3", encoding="utf-8")
     assert load_view_set(tmp_path).digest == digest
+
+
+def test_readers_by_schema():
+    """readersはスキーマごとのロールの一覧. 省略するとNone. ハッシュに入る."""
+    assert _parse(DATA).readers is None
+    data = {**DATA, "readers": {"model": ["ro"], "seeds": ["ro", "lab"], "web": []}}
+    view_set = _parse(data)
+    assert view_set.readers == {"model": ("ro",), "seeds": ("ro", "lab"), "web": ()}
+    assert view_set.digest != _parse(DATA).digest
+
+
+@pytest.mark.parametrize(
+    "readers",
+    [["ro"], {"model": "ro"}, {"model": [1]}],
+)
+def test_invalid_readers(readers):
+    """readersの書き方の誤りを読み込むときに止める."""
+    with pytest.raises(ValueError, match="readers"):
+        _parse({**DATA, "readers": readers})
