@@ -12,7 +12,6 @@ from sqlalchemy import create_engine
 # これらの行がないと開催ごと読み込まれない。
 _HORSE_RELATIONS = [
     "result",
-    "calculated_score",
     "trainanalysis",
     "trainoikiri",
     "horse_base",

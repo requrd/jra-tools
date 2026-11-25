@@ -55,7 +55,14 @@ select r.racehorsekey, r.racekey, model.jrdb_date(k.ymd) as race_date, r.num as 
 from staging.kaisai k
 join staging.bangumi b on b.kaisaikey = k.kaisaikey and b.ymd = k.ymd
 join staging.racehorse r on r.racekey = b.racekey
-left join staging.calculated_score c on c.racehorsekey = r.racehorsekey
+left join features.waku_rates c on c.racehorsekey = r.racehorsekey
+"""
+# entries_v1の枠の率の元(テストの値。出走馬ごとに1行)
+WAKU_RATES_SQL = """
+create table features.waku_rates as
+select racehorsekey, (waku / 10.0)::double precision as waku_win_rate,
+       (waku / 5.0)::double precision as waku_rentai_rate
+from staging.racehorse
 """
 LABELS_SQL = """
 create view features.labels_v1 as
@@ -145,6 +152,7 @@ def engine(
         for name, rows in sample_rows(sample_kaisais).items():
             conn.execute(db.metadata.tables[name].insert(), rows)
         conn.exec_driver_sql(FUNCTION_SQL)
+        conn.exec_driver_sql(WAKU_RATES_SQL)
         conn.exec_driver_sql(ENTRIES_SQL)
         conn.exec_driver_sql(LABELS_SQL)
         conn.exec_driver_sql(CATEGORIES_SQL)
@@ -229,11 +237,11 @@ def test_missing_column(engine: Engine, sample_kaisais: List[KaisaiData]):
     ("table", "key", "message"),
     [
         (
-            "calculated_score",
+            "features.waku_rates",
             "racehorsekey",
             "features.entries_v1.waku_win_rateが値なし",
         ),
-        ("seiseki", "racehorsekey", "成績がありません"),
+        ("staging.seiseki", "racehorsekey", "成績がありません"),
     ],
 )
 def test_missing_row(
@@ -244,7 +252,7 @@ def test_missing_row(
     spec = _pinned()
     with engine.begin() as conn:
         conn.execute(
-            text(f"delete from staging.{table} where {key} = :v"),  # noqa: S608 テストの固定値
+            text(f"delete from {table} where {key} = :v"),  # noqa: S608 テストの固定値
             {"v": getattr(horse, key)},
         )
     start, end = _period(sample_kaisais)

@@ -6,5 +6,4 @@
 from .database.bao_importer import *
 from .database.db_checker import *
 from .database.kaisai_loader import *
-from .database.predict_race_factory import *
 from .database.schedule import *
