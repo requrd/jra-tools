@@ -470,7 +470,7 @@ wheels = [
 
 [[package]]
 name = "jra-tools"
-version = "0.8.0"
+version = "0.9.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -498,7 +498,6 @@ dev = [
     { name = "pandas-stubs" },
     { name = "pdoc" },
     { name = "psycopg", extra = ["binary"] },
-    { name = "pymysql" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -512,7 +511,7 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.8.5" },
     { name = "beautifulsoup4", specifier = ">=4.11.1" },
-    { name = "jrdb-model", specifier = ">=0.3.0" },
+    { name = "jrdb-model", specifier = ">=0.4.0" },
     { name = "lxml", specifier = ">=4.9.0" },
     { name = "numpy", specifier = ">1.24.4" },
     { name = "pandas", specifier = ">=2.2" },
@@ -532,7 +531,6 @@ dev = [
     { name = "pandas-stubs", specifier = ">=3.1.0.261029" },
     { name = "pdoc", specifier = ">=16.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "pymysql", specifier = ">=1.1.1" },
     { name = "pytest", specifier = ">=8.3.3" },
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
@@ -544,7 +542,7 @@ dev = [
 
 [[package]]
 name = "jrdb-model"
-version = "0.3.0"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "flask" },
@@ -553,9 +551,9 @@ dependencies = [
     { name = "pymysql" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/84/44/7f7ad2861b75a89761700d20e3afcf8d59d4dbcec312862f1c32ddec12c5/jrdb_model-0.3.0.tar.gz", hash = "sha256:bf13379b62caf7ea814178d3859d5bed6777bbee846ae11ae4d512c79e206e57", size = 14749, upload-time = "2026-10-29T06:02:08.205Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/91/5a/d454aa72deba30c4d45158a88b65bad8fd62547bd2cc59194ae725499788/jrdb_model-0.4.0.tar.gz", hash = "sha256:63102d85d1c11c751eb3874e971222ac7287d4d166b167c55f62c059e701eb9c", size = 14820, upload-time = "2026-11-25T04:19:45.345Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/94/94/32bd4e1503c5c762a45d4a936236e827e425169c9639ca49de8190415459/jrdb_model-0.3.0-py3-none-any.whl", hash = "sha256:5abc9722ae05c869e2a0dd1c6a6c3b931b364eb0c86289ae018f13f7e4a9f98f", size = 18335, upload-time = "2026-10-29T06:02:06.844Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/1e/76da705c504ecd4599914aa669c4252a04444f9a7275f297251c91f4ddd3/jrdb_model-0.4.0-py3-none-any.whl", hash = "sha256:d127d3f75b88e99446569c7af09414e9b4f737ca53e85dd448b4083bf9f6d121", size = 17819, upload-time = "2026-11-25T04:19:44.357Z" },
 ]
 
 [[package]]
