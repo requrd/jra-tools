@@ -52,7 +52,6 @@ apply_views(engine, load_view_set("schemas"))   # 定義が変わっていれば
 | `annual_schedule`・`open_days`・`annual_kaisais`・`open_kaisais`(async) | Yahoo競馬の開催日・開催の一覧 |
 | `missing_days`・`db_days` | DBに登録済みの開催日と、足りない日 |
 | `get_kaisais(start, end)` | jrdb-modelの開催データを、紐づく表ごと読む |
-| `BaoImporter` | BAOのオッズのCSVをDBに取り込む |
 
 ## APIリファレンス
 docstringから生成する(公開していない。手元で見る)。

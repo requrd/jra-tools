@@ -17,7 +17,7 @@ jra-toolsが受け取るもの・作るものが満たす約束。全体の流�
 ```yaml
 name: sample                           # 仕様の名前
 max_horses: 18                         # 1レースの馬番の位置の数
-source: features.entries_v1            # 入力を読むビュー(表でもよい)
+source: features.entries_v2            # 入力を読むビュー(表でもよい)
 view_digest: 1c445b...                 # 固定するときに写る
 train_from: 2013-01-01                 # 学習期間(両端を含む。保存する前に書く)
 train_to: 2024-12-31
@@ -58,7 +58,7 @@ groups:
 | ビュー | 要る列 |
 |---|---|
 | 入力(仕様の`source`) | `racehorsekey`・`racekey`・`race_date`(date)・`umaban`と、仕様の特徴量の列 |
-| ラベル(既定は`features.labels_v1`) | `racehorsekey`・`finish_order` |
+| ラベル(既定は`features.labels_v2`) | `racehorsekey`・`finish_order` |
 
 - 数値の列に値なし(NULL)があれば止まる(NULLの扱いはビューで決める)。文字列は0にする
 - 成績(ラベルのビューの行)のない出走があれば止まる
@@ -133,7 +133,7 @@ model.fit(dataset.x, dataset.labels)
 
 ## 7. ビューのハッシュと読み直しの節約
 ### ハッシュ
-- 読むたびに、仕様の列が`source`にあるか、`source`の定義のハッシュが`view_digest`と同じかを確かめ、違えば止まる。定義を変えたら(バグ修正でも)、仕様を固定し直すか、版を上げたビューを並べる(`entries_v2`)
+- 読むたびに、仕様の列が`source`にあるか、`source`の定義のハッシュが`view_digest`と同じかを確かめ、違えば止まる。定義を変えたら(バグ修正でも)、仕様を固定し直すか、版を上げたビューを並べる(`entries_v3`)
 - ハッシュは、`source`と、依存するビュー・関数の定義(Postgresが保存した形)から作る。関係のないものを変えても変わらない。空白・コメントだけの違いでは変わらない。stagingの表は名前だけを含める。Postgresのメジャーバージョンを上げると変わることがある
 - 名前も含むので、sandboxのビューで固定した仕様は、同じ定義を`features.`へ移すと合わない
 - 関数の中から呼ぶ関数をたどれるのは、`RETURN`で書いたSQLの関数だけ(`AS $$...$$`の本体はPostgresが依存を記録しない)

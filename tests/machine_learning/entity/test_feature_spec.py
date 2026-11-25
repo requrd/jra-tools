@@ -15,7 +15,7 @@ def _data(**overrides):
     data = {
         "name": "sample",
         "max_horses": 18,
-        "source": "features.entries_v1",
+        "source": "features.entries_v2",
         "view_digest": "d" * 64,
         "groups": [
             {
@@ -91,7 +91,7 @@ def test_invalid_feature(kwargs, message):
 def test_invalid_source():
     """仕様のsourceは「スキーマ.ビュー名」."""
     with pytest.raises(ValueError, match="スキーマ.ビュー名"):
-        parse_feature_spec(_data(source="entries_v1"))
+        parse_feature_spec(_data(source="entries_v2"))
 
 
 def test_training_period():

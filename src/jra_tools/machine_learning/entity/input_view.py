@@ -1,8 +1,8 @@
 """ビューから読む入力・ラベルの契約と、読んだ表を学習・推論に使ってよいかの決まり.
 
-- 入力のビュー(仕様のsource。例: features.entries_v1): 1頭1行で、レースの前に分かる列だけ。
+- 入力のビュー(仕様のsource。例: features.entries_v2): 1頭1行で、レースの前に分かる列だけ。
   ENTRY_COLUMNSと、仕様の特徴量の列
-- ラベルのビュー(例: features.labels_v1): 1頭1行の確定後の値。LABEL_COLUMNS
+- ラベルのビュー(例: features.labels_v2): 1頭1行の確定後の値。LABEL_COLUMNS
 
 ビューの定義のハッシュ(view_digest)は、学習の前に仕様に書き、読むたびに今のハッシュと照合する。
 違えば、学習時と違う入力になるので止める。
@@ -19,7 +19,7 @@ ENTRY_COLUMNS = ("racehorsekey", "racekey", "race_date", "umaban")
 # ラベルのビューに必要な列
 LABEL_COLUMNS = ("racehorsekey", "finish_order")
 # 既定のラベルのビュー
-DEFAULT_LABELS = "features.labels_v1"
+DEFAULT_LABELS = "features.labels_v2"
 # 読んだ表で、ラベルのビューに行があるかを表す列(ラベルのビューのracehorsekey)
 LABEL_PRESENT = "_label"
 

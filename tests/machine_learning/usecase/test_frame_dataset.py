@@ -20,7 +20,7 @@ SPEC = parse_feature_spec(
     {
         "name": "sample",
         "max_horses": 4,
-        "source": "features.entries_v1",
+        "source": "features.entries_v2",
         "view_digest": "d" * 64,
         "groups": [
             {

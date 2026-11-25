@@ -27,7 +27,7 @@ from jra_tools.machine_learning.usecase.view_dataset import (
 )
 
 VIEW = "sandbox.entries_try"
-LABELS = "features.labels_v1"
+LABELS = "features.labels_v2"
 DIGEST = "d" * 64
 OUTPUTS = ("o1", "o2", "o3", "o4", "o5")
 RAW_SPEC = parse_feature_spec(

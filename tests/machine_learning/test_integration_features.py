@@ -1,7 +1,7 @@
 """特徴量の層から読む入口(features)の結合テスト. 環境変数TEST_POSTGRESのPostgresを使う(なければ飛ばす).
 
 入口は接続先を環境変数DBから読むので、DBにTEST_POSTGRESを設定して呼ぶ。
-stagingにsample_kaisaisを入れ、model(code_categories・races)とfeatures(entries_v1・labels_v1)を
+stagingにsample_kaisaisを入れ、model(code_categories・races)とfeatures(entries_v2・labels_v2)を
 テスト用に作る。
 """
 
@@ -45,7 +45,7 @@ OUTPUTS = ("o1", "o2", "o3", "o4", "o5")
 
 # 数値15列とカテゴリの枠(コードは文字列。記載外の0はmodelと同じくNULLにする)
 ENTRIES_SQL = """
-create view features.entries_v1 as
+create view features.entries_v2 as
 select r.racehorsekey, r.racekey, model.jrdb_date(k.ymd) as race_date, r.num as umaban,
        k.turf_baba_in, r.idm, r.jockey_score, r.info_score, r.train_score,
        r.trainer_score, r.train_code, r.jockey_rate_rentai, r.kakutoku_money,
@@ -57,7 +57,7 @@ join staging.bangumi b on b.kaisaikey = k.kaisaikey and b.ymd = k.ymd
 join staging.racehorse r on r.racekey = b.racekey
 left join features.waku_rates c on c.racehorsekey = r.racehorsekey
 """
-# entries_v1の枠の率の元(テストの値。出走馬ごとに1行)
+# entries_v2の枠の率の元(テストの値。出走馬ごとに1行)
 WAKU_RATES_SQL = """
 create table features.waku_rates as
 select racehorsekey, (waku / 10.0)::double precision as waku_win_rate,
@@ -65,7 +65,7 @@ select racehorsekey, (waku / 10.0)::double precision as waku_win_rate,
 from staging.racehorse
 """
 LABELS_SQL = """
-create view features.labels_v1 as
+create view features.labels_v2 as
 select r.racehorsekey, s.order_of_arrival as finish_order
 from staging.racehorse r
 join staging.seiseki s on s.racehorsekey = r.racehorsekey
@@ -101,7 +101,7 @@ def _raw_spec(category: str = "waku") -> FeatureSpec:
         {
             "name": "resnet4_view",
             "max_horses": 18,
-            "source": "features.entries_v1",
+            "source": "features.entries_v2",
             "groups": [
                 {
                     "name": "scores",
@@ -186,7 +186,7 @@ def test_load_input(engine: Engine, sample_kaisais: List[KaisaiData]):
 
 def test_digest(engine: Engine):
     """sourceの今のハッシュ. pin_specが仕様に書く値と同じ. なければ止める."""
-    assert features.digest("features.entries_v1") == (_pinned().view_digest)
+    assert features.digest("features.entries_v2") == (_pinned().view_digest)
     with pytest.raises(ValueError, match="ビューがありません: features.no_such"):
         features.digest("features.no_such")
 
@@ -195,7 +195,7 @@ def test_db_required(engine: Engine, monkeypatch: pytest.MonkeyPatch):
     """接続先(環境変数DB)がなければ止める."""
     monkeypatch.delenv("DB")
     with pytest.raises(RuntimeError, match="環境変数DB"):
-        features.digest("features.entries_v1")
+        features.digest("features.entries_v2")
 
 
 def test_digest_mismatch(engine: Engine, sample_kaisais: List[KaisaiData]):
@@ -239,7 +239,7 @@ def test_missing_column(engine: Engine, sample_kaisais: List[KaisaiData]):
         (
             "features.waku_rates",
             "racehorsekey",
-            "features.entries_v1.waku_win_rateが値なし",
+            "features.entries_v2.waku_win_rateが値なし",
         ),
         ("staging.seiseki", "racehorsekey", "成績がありません"),
     ],
@@ -402,7 +402,7 @@ def test_cache_dir_keeps_frame(
         f"resnet4_view_{start}_{end}.parquet"
     ]
     with engine.begin() as conn:
-        conn.exec_driver_sql("drop view features.labels_v1")
+        conn.exec_driver_sql("drop view features.labels_v2")
     second = features.load_dataset(spec, start, end, cache_dir=tmp_path)
     assert np.array_equal(first.x, second.x)
     assert list(first.racekeys) == list(second.racekeys)
