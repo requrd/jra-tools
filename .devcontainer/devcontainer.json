@@ -4,7 +4,7 @@
   "name": "Existing Dockerfile",
   "image": "mcr.microsoft.com/devcontainers/python:3.13-bookworm",
   "containerEnv": {
-    "DB": "mariadb+pymysql://user:pass@host_name/database_name"
+    "DB": "postgresql+psycopg://user:pass@host_name/database_name"
   },
   // "runArgs": ["--network=host", "--rm", "--env-file",".devcontainer/devcontainer.env"],
   // Features to add to the dev container. More info: https://containers.dev/features.
