@@ -8,6 +8,10 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # カバレッジレポートを PR にコメントする
+      pull-requests: write
     services:
       # ビューの仕組み(jra_tools.views)の結合テスト
       postgres:
@@ -34,14 +38,24 @@ jobs:
       - run: uv run ruff format --check src tests
       - run: uv run ruff check src tests
       - run: uv run mypy src
-      - run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
-      # カバレッジをジョブの概要(Summary)に出す
-      - if: always() && hashFiles('coverage.xml') != ''
+      - id: pytest
+        run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+      # カバレッジをジョブの概要(Summary)と PR のコメントに出す
+      - name: Build coverage report
+        if: always() && hashFiles('coverage.xml') != ''
         run: |
           {
             echo "## カバレッジ"
+            echo
             uv run coverage report --format=markdown
-          } >> "$GITHUB_STEP_SUMMARY"
+          } > "$RUNNER_TEMP/coverage.md"
+          cat "$RUNNER_TEMP/coverage.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment coverage report on the pull request
+        if: always() && hashFiles('coverage.xml') != '' && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v3.0.5
+        with:
+          header: coverage
+          path: ${{ runner.temp }}/coverage.md
       - if: always() && hashFiles('coverage.xml') != ''
         uses: actions/upload-artifact@v7
         with:
