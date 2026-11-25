@@ -38,7 +38,7 @@ def _spec(numbers: int = 14):
         {
             "name": "sample",
             "max_horses": 18,
-            "source": "features.entries_v1",
+            "source": "features.entries_v2",
             "view_digest": "d" * 64,
             "groups": [
                 {

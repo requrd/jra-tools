@@ -18,20 +18,20 @@ pytestmark = pytest.mark.skipif(
 def test_digest_is_per_view(engine: Engine):
     """関係のないビューを足してもハッシュは変わらず、依存する定義を変えると変わる."""
     with engine.connect() as conn:
-        before = view_digest(conn, "features.entries_v1")
+        before = view_digest(conn, "features.entries_v2")
     with engine.begin() as conn:
         conn.exec_driver_sql(
-            "create view features.entries_v2 as select racehorsekey from features.entries_v1"
+            "create view features.entries_v3 as select racehorsekey from features.entries_v2"
         )
     with engine.connect() as conn:
-        assert view_digest(conn, "features.entries_v1") == before
+        assert view_digest(conn, "features.entries_v2") == before
     with engine.begin() as conn:
         conn.exec_driver_sql(
             "create or replace function model.jrdb_date(v integer) returns date"
             " language sql immutable return to_date(v::text, 'YYYYMMDD') + 0"
         )
     with engine.connect() as conn:
-        assert view_digest(conn, "features.entries_v1") != before
+        assert view_digest(conn, "features.entries_v2") != before
 
 
 def test_digest_ignores_search_path(engine: Engine):
@@ -39,8 +39,8 @@ def test_digest_ignores_search_path(engine: Engine):
     other = create_engine(os.environ["TEST_POSTGRES"])
     try:
         with engine.connect() as a, other.connect() as b:
-            assert view_digest(a, "features.entries_v1") == view_digest(
-                b, "features.entries_v1"
+            assert view_digest(a, "features.entries_v2") == view_digest(
+                b, "features.entries_v2"
             )
             assert a.execute(text("show search_path")).scalar() == "staging"
     finally:
